@@ -63,8 +63,9 @@ function Program(gl, shaders) {
     this.set_attrib = {};
     for (var i=0; i<num_attribs; i++) {
 	var active_attrib = gl.getActiveAttrib(this.handle, i);
-	this.attribs[i] = active_attrib;
-	this.set_attrib[active_attrib.name] = i;
+        var loc = gl.getAttribLocation(this.handle, active_attrib.name);
+	this.attribs[loc] = active_attrib;
+	this.set_attrib[active_attrib.name] = loc;
     }
 /*
     this.type_to_uniform = {
