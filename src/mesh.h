@@ -77,8 +77,17 @@ class ShortFloatList {
  public:
   static const size_t kMaxNumFloats = 4;
   ShortFloatList()
-      : size_(0) { }
+      : size_(0)
+  {
+    clear();
+  }
 
+  void clear() {
+    for (size_t i = 0; i < kMaxNumFloats; ++i) {
+      a_[i] = 0.f;
+    }
+  }
+  
   // Parse up to kMaxNumFloats from C string.
   size_t ParseLine(const char* line) {
     for (size_ = 0; size_ != kMaxNumFloats; ++size_) {
@@ -340,7 +349,7 @@ class WavefrontObjFile {
   }
 
   void ParseTexCoord(const ShortFloatList& floats, unsigned int line_num) {
-    if (floats.size() != texcoordDim()) {
+    if ((floats.size() < 1) || (floats.size() > 3)) {
       ErrorLine("bad texcoord", line_num);
     }
     floats.AppendTo(&texcoords_);
