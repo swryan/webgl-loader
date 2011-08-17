@@ -5,6 +5,11 @@ Usage: ./objcompress in.obj [out.utf8]
 
         If not, write a JSON version to STDOUT.
 
+Usage: ./objanalyze in.obj [list of cache sizes]
+
+        Perform vertex cache analysis on in.obj using specified sizes.
+        For example: ./objanalyze in.obj 6 16 24 32
+        Maximum cache size is 32.
 
 Building:
 

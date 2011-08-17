@@ -774,4 +774,33 @@ void CompressMeshToFile(const QuantizedAttribList& attribs,
   fclose(fp);
 }
 
+// Return cache misses from a simulated FIFO cache.
+size_t CountFifoCacheMisses(const IndexList& indices, const size_t cache_size) {
+  static const size_t kMaxCacheSize = 32;
+  static const int kUnknownIndex = -1;
+  CHECK(cache_size <= kMaxCacheSize);
+  int fifo[kMaxCacheSize + 1];
+  for (size_t i = 0; i < cache_size; ++i) {
+    fifo[i] = kUnknownIndex;
+  }
+  size_t misses = 0;
+  for (size_t i = 0; i < indices.size(); ++i) {
+    const int idx = indices[i];
+    // Use a sentry to simplify the FIFO search.
+    fifo[cache_size] = idx;
+    size_t at = 0;
+    while (fifo[at] != idx) ++at;
+    if (at == cache_size) {
+      ++misses;
+      int write_idx = idx;
+      for (size_t j = 0; j < cache_size; ++j) {
+        const int swap_idx = fifo[j];
+        fifo[j] = write_idx;
+        write_idx = swap_idx;
+      }
+    }
+  }
+  return misses;
+}
+
 #endif  // WEBGL_LOADER_MESH_H_
