@@ -87,7 +87,7 @@ class ShortFloatList {
       a_[i] = 0.f;
     }
   }
-  
+
   // Parse up to kMaxNumFloats from C string.
   size_t ParseLine(const char* line) {
     for (size_ = 0; size_ != kMaxNumFloats; ++size_) {
@@ -100,7 +100,11 @@ class ShortFloatList {
   }
 
   void AppendTo(AttribList* attribs) const {
-    attribs->insert(attribs->end(), a_, a_ + size_);
+    AppendNTo(attribs, size_);
+  }
+
+  void AppendNTo(AttribList* attribs, const size_t sz) const {
+    attribs->insert(attribs->end(), a_, a_ + sz);
   }
 
   bool empty() const { return size_ == 0; }
@@ -352,7 +356,7 @@ class WavefrontObjFile {
     if ((floats.size() < 1) || (floats.size() > 3)) {
       ErrorLine("bad texcoord", line_num);
     }
-    floats.AppendTo(&texcoords_);
+    floats.AppendNTo(&texcoords_, texcoordDim());
   }
 
   void ParseNormal(const ShortFloatList& floats, unsigned int line_num) {
