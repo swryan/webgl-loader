@@ -1,3 +1,10 @@
+8/25/2011: Version 0.0.2
+
+- Compute bounds for all attribs, not just position
+- Refactoring
+- Minimal build automation
+- A few tests
+
 8/16/2011: Version 0.0.1
 
 Not really keeping track of version numbers, but:

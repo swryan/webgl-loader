@@ -25,8 +25,8 @@
 #include <utility>
 #include <vector>
 
-typedef unsigned short uint16;
-typedef short int16;
+#include "base.h"
+#include "utf8.h"
 
 typedef std::vector<float> AttribList;
 typedef std::vector<int> IndexList;
@@ -494,6 +494,40 @@ AABB AABBFromAttribs(const AttribList& interleaved_attribs) {
   return aabb;
 }
 
+struct Bounds {
+  float mins[8];
+  float maxes[8];
+};
+
+float UniformScaleFromBounds(const Bounds& bounds) {
+  const float x = bounds.maxes[0] - bounds.mins[0];
+  const float y = bounds.maxes[1] - bounds.mins[1];
+  const float z = bounds.maxes[2] - bounds.mins[2];
+  return (x > y)
+      ? ((x > z) ? x : z)
+      : ((y > z) ? y : z);
+}
+
+Bounds BoundsFromAttribs(const AttribList& interleaved_attribs) {
+  Bounds bounds;
+  for (size_t i = 0; i < 8; ++i) {
+    bounds.mins[i] = FLT_MAX;
+    bounds.maxes[i] = -FLT_MAX;
+  }
+  for (size_t i = 0; i < interleaved_attribs.size(); i += 8) {
+    for (size_t j = 0; j < 8; ++j) {
+      const float attrib = interleaved_attribs[i + j];
+      if (bounds.mins[j] > attrib) {
+        bounds.mins[j] = attrib;
+      }
+      if (bounds.maxes[j] < attrib) {
+        bounds.maxes[j] = attrib;
+      }
+    }
+  }
+  return bounds;
+}
+
 uint16 Quantize(float f, float offset, float range, int bits) {
   const float f_offset = f + offset;
   // Losslessly multiply a float by 1 << bits;
@@ -504,12 +538,14 @@ uint16 Quantize(float f, float offset, float range, int bits) {
 
 void AttribsToQuantizedAttribs(const AttribList& interleaved_attribs,
                                QuantizedAttribList* quantized_attribs) {
-  const AABB aabb = AABBFromAttribs(interleaved_attribs);
-  const float scale = UniformScaleFromAABB(aabb);
+  const Bounds bounds = BoundsFromAttribs(interleaved_attribs);
+  const float scale = UniformScaleFromBounds(bounds);
   quantized_attribs->resize(interleaved_attribs.size());
-  const float offsets[8] = { -aabb.mins[0], -aabb.mins[1], -aabb.mins[2],
-                             0.0f, 0.0f, 1.f, 1.f, 1.f };
-  const float scales[8] = { scale, scale, scale, 1.f, 1.f, 2.f, 2.f, 2.f };
+  const float offsets[8] = { -bounds.mins[0], -bounds.mins[1], -bounds.mins[2],
+                             -bounds.mins[3], -bounds.mins[4], 1.f, 1.f, 1.f };
+  const float scales[8] = { scale, scale, scale,
+                            bounds.maxes[3] - bounds.mins[3],
+                            bounds.maxes[4] - bounds.mins[4], 2.f, 2.f, 2.f };
   const int bits[8] = { 14, 14, 14, 10, 10, 10, 10, 10 };
   for (size_t i = 0; i < interleaved_attribs.size(); i += 8) {
     for (size_t j = 0; j < 8; ++j) {
@@ -693,40 +729,6 @@ class VertexOptimizer {
 
 uint16 ZigZag(int16 word) {
   return (word >> 15) ^ (word << 1);
-}
-
-#define CHECK(PRED) if (!(PRED)) {                              \
-    fprintf(stderr, "%d: CHECK failed: " #PRED "\n", __LINE__); \
-    exit(-1); } else                                
-
-bool Uint16ToUtf8(uint16 word, std::vector<char>* utf8) {
-  const char kMoreBytesPrefix = static_cast<char>(0x80);
-  const uint16 kMoreBytesMask = 0x3F;
-  if (word < 0x80) {
-    utf8->push_back(static_cast<char>(word));
-  } else if (word < 0x800) {
-    const char kTwoBytePrefix = static_cast<char>(0xC0);
-    utf8->push_back(kTwoBytePrefix + static_cast<char>(word >> 6));
-    utf8->push_back(kMoreBytesPrefix +
-                    static_cast<char>(word & kMoreBytesMask));
-  } else if (word < 0xF800) {
-    const char kThreeBytePrefix = static_cast<char>(0xE0);
-    // We can only encode 65535 - 2048 values because of illegal UTF-8
-    // characters, such as surrogate pairs in [0xD800, 0xDFFF].
-    //TODO: what about other characters, like reversed-BOM 0xFFFE?
-    if (word >= 0xD800) {
-      // Shift the result to avoid the surrogate pair range.
-      word += 0x0800;
-    }
-    utf8->push_back(kThreeBytePrefix + static_cast<char>(word >> 12));
-    utf8->push_back(kMoreBytesPrefix +
-                    static_cast<char>((word >> 6) & kMoreBytesMask));
-    utf8->push_back(kMoreBytesPrefix +
-                    static_cast<char>(word & kMoreBytesMask));
-  } else {
-    return false;
-  }
-  return true;
 }
 
 void CompressIndicesToUtf8(const IndexList& list, std::vector<char>* utf8) {

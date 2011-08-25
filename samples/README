@@ -7,6 +7,17 @@ A working, but unrecommended, riskier alternative would be to run
 Chrome using --allow-file-access-from-files and navigating using
 the file:// protocol.
 
+There are some convenience scripts to regenerate the sample data (both
+here and in the testing/ subdirectory).
+
+To generate:
+
+$ ./gen.sh
+
+To clean:
+
+$ ./clean.sh
+
 These are not particularly well-written examples, but are
 functional. The most important part to pay attention to is the
 decoding function at the top of the ben.js and hand.js:
