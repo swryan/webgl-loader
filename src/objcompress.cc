@@ -17,6 +17,7 @@ exit;
 // permissions and limitations under the License.
 
 #include "mesh.h"
+#include "optimize.h"
 
 const bool kQuantize = true;
 const bool kOptimize = true;
@@ -37,11 +38,11 @@ int main(int argc, char* argv[]) {
   obj.CreateDrawMeshes(&meshes);
   if (kQuantize) {
     QuantizedAttribList attribs;
-    AttribsToQuantizedAttribs(meshes[0].interleaved_attribs, &attribs);
+    AttribsToQuantizedAttribs(meshes[0].attribs, &attribs);
     if (kOptimize) {
       QuantizedAttribList optimized_attribs;
       IndexList optimized_indices;
-      VertexOptimizer vertex_optimizer(attribs, meshes[0].triangle_indices);
+      VertexOptimizer vertex_optimizer(attribs, meshes[0].indices);
       vertex_optimizer.GetOptimizedMesh(&optimized_attribs, &optimized_indices);
       if (argc == 3) {
         CompressMeshToFile(optimized_attribs, optimized_indices, argv[2]);
@@ -54,8 +55,8 @@ int main(int argc, char* argv[]) {
       DumpJsonFromQuantizedAttribs(attribs);
     }
   } else {
-    DumpJsonFromInterleavedAttribs(meshes[0].interleaved_attribs);
+    DumpJsonFromInterleavedAttribs(meshes[0].attribs);
   }
-  DumpJsonFromIndices(meshes[0].triangle_indices);
+  DumpJsonFromIndices(meshes[0].indices);
   return 0;
 }

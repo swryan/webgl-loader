@@ -16,9 +16,36 @@
 
 #include <stdio.h>
 
+#include <vector>
+
 typedef unsigned short uint16;
 typedef short int16;
 
+typedef std::vector<float> AttribList;
+typedef std::vector<int> IndexList;
+typedef std::vector<uint16> QuantizedAttribList;
+typedef std::vector<uint16> OptimizedIndexList;
+
+// TODO: these data structures ought to go elsewhere.
+struct DrawMesh {
+  // Interleaved vertex format:
+  //  3-D Position
+  //  3-D Normal
+  //  2-D TexCoord
+  // Note that these
+  AttribList attribs;
+  // Indices are 0-indexed.
+  IndexList indices;
+};
+
+struct WebGLMesh {
+  QuantizedAttribList attribs;
+  OptimizedIndexList indices;
+};
+
+typedef std::vector<WebGLMesh> WebGLMeshList;
+
+// TODO: Visual Studio calls this someting different.
 #ifdef putc_unlocked
 # define PutChar putc_unlocked
 #else

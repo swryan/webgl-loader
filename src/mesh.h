@@ -28,21 +28,6 @@
 #include "base.h"
 #include "utf8.h"
 
-typedef std::vector<float> AttribList;
-typedef std::vector<int> IndexList;
-typedef std::vector<uint16> QuantizedAttribList;
-
-struct DrawMesh {
-  // Interleaved vertex format:
-  //  3-D Position
-  //  3-D Normal
-  //  2-D TexCoord
-  // Note that these
-  AttribList interleaved_attribs;
-  // Indices are 0-indexed.
-  IndexList triangle_indices;
-};
-
 void DumpJsonFromQuantizedAttribs(const QuantizedAttribList& attribs) {
   puts("var attribs = new Uint16Array([");
   for (size_t i = 0; i < attribs.size(); i += 8) {
@@ -258,18 +243,18 @@ class WavefrontObjFile {
       const int normal_index = faces_[i + 2] - 1;
       const std::pair<int, bool> flattened = flattener.GetFlattenedIndex(
           position_index, texcoord_index, normal_index);
-      draw_mesh.triangle_indices.push_back(flattened.first);
+      draw_mesh.indices.push_back(flattened.first);
       if (flattened.second) {
         for (size_t i = 0; i < positionDim(); ++i) {
-          draw_mesh.interleaved_attribs.push_back(
+          draw_mesh.attribs.push_back(
               positions_[positionDim() * position_index + i]);
         }
         for (size_t i = 0; i < texcoordDim(); ++i) {
-          draw_mesh.interleaved_attribs.push_back(
+          draw_mesh.attribs.push_back(
               texcoords_[texcoordDim() * texcoord_index + i]);
         }
         for (size_t i = 0; i < normalDim(); ++i) {
-          draw_mesh.interleaved_attribs.push_back(
+          draw_mesh.attribs.push_back(
               normals_[normalDim() * normal_index + i]);
         }
       }
@@ -554,178 +539,6 @@ void AttribsToQuantizedAttribs(const AttribList& interleaved_attribs,
     }
   }
 }
-
-// Based on:
-// http://home.comcast.net/~tom_forsyth/papers/fast_vert_cache_opt.html
-class VertexOptimizer {
- public:
-  // TODO: this could easily work with non-quantized attribute lists.
-  VertexOptimizer(const QuantizedAttribList& attribs, const IndexList& indices)
-      : attribs_(attribs),
-        indices_(indices),
-        per_vertex_data_(attribs_.size() / 8) {    
-    // The cache has an extra slot allocated to simplify the logic in
-    // InsertIndexToCache.
-    for (unsigned int i = 0; i <= kCacheSize; ++i) {
-      cache_[i] = kUnknownIndex;
-    }
-
-    // Loop through the indices, incrementing active triangle counts.
-    for (size_t i = 0; i < indices_.size(); ++i) {
-      per_vertex_data_[indices_[i]].active_tris++;
-    }
-
-    // Compute initial vertex scores.
-    for (size_t i = 0; i < per_vertex_data_.size(); ++i) {
-      per_vertex_data_[i].UpdateScore();
-    }
-  }
-
-  void GetOptimizedMesh(QuantizedAttribList* attribs, IndexList* indices) {
-    attribs->resize(attribs_.size());
-    indices->resize(indices_.size());
-
-    uint16* attribs_out = &attribs->at(0);
-    int* indices_out = &indices->at(0);
-    int next_unused_index = 0;
-    // Consume indices_, one triangle at a time. When a triangle is consumed from
-    // the middle of indices_, the last one is copied in to replace it so that we
-    // can shrink indices_ from the end.
-    while (!indices_.empty()) {
-      const size_t best_triangle = FindBestTriangle();
-      const size_t last_triangle = indices_.size() - 3;
-      // Go through the indices of the best triangle.
-      for (size_t i = 0; i < 3; ++i) {
-        const int index = indices_[best_triangle + i];
-        // After consuming this vertex, copy the corresponding index
-        // from the last triangle into this slot.
-        indices_[best_triangle + i] = indices_[last_triangle + i];
-        per_vertex_data_[index].active_tris--;
-        InsertIndexToCache(index);
-        const int cached_output_index = per_vertex_data_[index].output_index;
-        // Have we seen this index before?
-        if (cached_output_index != kUnknownIndex) {
-          *indices_out++ = cached_output_index;
-          continue;
-        }
-        // The first time we see an index, not only do we increment
-        // next_index counter, but we must also copy the corresponding
-        // attributes.
-        per_vertex_data_[index].output_index = next_unused_index;
-        for (size_t j = 0; j < 8; ++j) {
-          *attribs_out++ = attribs_[8*index + j];
-        }
-        *indices_out++ = next_unused_index++;
-      }
-      // Remove the last triangle.
-      indices_.resize(last_triangle);
-    }
-  }
- private:
-  static const int kUnknownIndex = -1;
-  static const uint16 kCacheSize = 32;
-
-  struct VertexData {
-    VertexData()
-        : active_tris(0),
-          cache_tag(kCacheSize),
-          output_index(kUnknownIndex),
-          score(-1.f)
-    { }
-
-    void UpdateScore() {
-      if (active_tris <= 0) {
-        score = -1.f;
-        return;
-      }
-      // TODO: build initial score table.
-      if (cache_tag < 3) {
-        // The most recent triangle should has a fixed score to
-        // discourage generating nothing but really long strips. If we
-        // want strips, we should use a different optimizer.
-        const float kLastTriScore = 0.75f;
-        score = kLastTriScore;
-      } else if (cache_tag < kCacheSize) {
-        // Points for being recently used.
-        const float kScale = 1.f / (kCacheSize - 3);
-        const float kCacheDecayPower = 1.5f;
-        score = powf(1.f - kScale * (cache_tag - 3), kCacheDecayPower);
-      } else {
-        // Not in cache.
-        score = 0.f;
-      }
-
-      // Bonus points for having a low number of tris still to use the
-      // vert, so we get rid of lone verts quickly.
-      const float kValenceBoostScale = 2.0f;
-      const float kValenceBoostPower = 0.5f;
-      const float valence_boost = powf(active_tris, -kValenceBoostPower);  // rsqrt?
-      score += valence_boost * kValenceBoostScale;
-    };
-
-    int active_tris;
-    unsigned int cache_tag;  // == kCacheSize means not in cache.
-    int output_index;  // For output remapping.
-    float score;
-  };
-
-  // This also updates the vertex scores!
-  void InsertIndexToCache(int index) {
-    // Find how recently the vertex was used.
-    const unsigned int cache_tag = per_vertex_data_[index].cache_tag;
-
-    // Don't do anything if the vertex is already at the head of the
-    // LRU list.
-    if (cache_tag == 0) return;
-
-    // Loop through the cache, inserting the index at the front, and
-    // bubbling down to where the index was originally found. If the
-    // index was not originally in the cache, then it claims to be at
-    // the (kCacheSize + 1)th entry, and we use an extra slot to make
-    // that case simpler.
-    int to_insert = index;
-    for (unsigned int i = 0; i <= cache_tag; ++i) {
-      const int current_index = cache_[i];
-
-      // Update cross references between the entry of the cache and
-      // the per-vertex data.
-      cache_[i] = to_insert;
-      per_vertex_data_[to_insert].cache_tag = i;
-      per_vertex_data_[to_insert].UpdateScore();
-      
-      // No need to continue if we find an empty entry.
-      if (current_index == kUnknownIndex) {
-        break;
-      }
-      
-      to_insert = current_index;
-    }
-  }
-
-  size_t FindBestTriangle() {
-    float best_score = -FLT_MAX;
-    size_t best_triangle = 0;
-    // TODO: without a boundary structure, this performs a linear
-    // scan, which makes Tom Forsyth's linear algorithm run in
-    // quadratic time!
-    for (size_t i = 0; i < indices_.size(); i += 3) {
-      const float score =
-          per_vertex_data_[indices_[i + 0]].score +
-          per_vertex_data_[indices_[i + 1]].score +
-          per_vertex_data_[indices_[i + 2]].score;
-      if (score > best_score) {
-        best_score = score;
-        best_triangle = i;
-      }
-    }
-    return best_triangle;
-  }
-  
-  const QuantizedAttribList& attribs_;
-  IndexList indices_;
-  std::vector<VertexData> per_vertex_data_;
-  int cache_[kCacheSize + 1];
-};
 
 uint16 ZigZag(int16 word) {
   return (word >> 15) ^ (word << 1);

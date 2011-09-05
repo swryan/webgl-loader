@@ -17,6 +17,7 @@ exit;
 // permissions and limitations under the License.
 
 #include "mesh.h"
+#include "optimize.h"
 
 void PrintCacheAnalysisRow(const IndexList& indices, const size_t cache_size,
                            const size_t num_verts, const size_t num_tris) {
@@ -53,8 +54,8 @@ int main(int argc, char* argv[]) {
   std::vector<DrawMesh> meshes;
   obj.CreateDrawMeshes(&meshes);
   const DrawMesh& draw_mesh = meshes[0];
-  const size_t num_verts = draw_mesh.interleaved_attribs.size() / 8;
-  const size_t num_tris = draw_mesh.triangle_indices.size() / 3;
+  const size_t num_verts = draw_mesh.attribs.size() / 8;
+  const size_t num_tris = draw_mesh.indices.size() / 3;
 
   printf("%zu vertices, %zu triangles\n\n", num_verts, num_tris);
 
@@ -67,13 +68,13 @@ int main(int argc, char* argv[]) {
   }
   
   puts("Before:\n");
-  PrintCacheAnalysisTable(count, args, draw_mesh.triangle_indices,
+  PrintCacheAnalysisTable(count, args, draw_mesh.indices,
                           num_verts, num_tris);
   QuantizedAttribList attribs;
-  AttribsToQuantizedAttribs(meshes[0].interleaved_attribs, &attribs);
+  AttribsToQuantizedAttribs(meshes[0].attribs, &attribs);
   QuantizedAttribList optimized_attribs;
   IndexList optimized_indices;
-  VertexOptimizer vertex_optimizer(attribs, meshes[0].triangle_indices);
+  VertexOptimizer vertex_optimizer(attribs, meshes[0].indices);
   vertex_optimizer.GetOptimizedMesh(&optimized_attribs, &optimized_indices);
 
   puts("\nAfter:\n");
