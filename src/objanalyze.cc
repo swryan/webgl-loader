@@ -27,7 +27,7 @@ void PrintCacheAnalysisRow(const IndexList& indices, const size_t cache_size,
          misses_as_double / num_verts, misses_as_double / num_tris);
 }
 
-void PrintCacheAnalysisTable(const size_t count, char** args,
+void PrintCacheAnalysisTable(const size_t count, const char** args,
                              const IndexList& indices, 
                              const size_t num_verts, const size_t num_tris) {
   puts("||Cache Size||# misses||ATVR||ACMR||");
@@ -39,7 +39,7 @@ void PrintCacheAnalysisTable(const size_t count, char** args,
   }
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, const char* argv[]) {
   if (argc < 2) {
     fprintf(stderr, "Usage: %s in.obj [list of cache sizes]\n\n"
             "\tPerform vertex cache analysis on in.obj using specified sizes.\n"
@@ -60,8 +60,8 @@ int main(int argc, char* argv[]) {
   printf("%zu vertices, %zu triangles\n\n", num_verts, num_tris);
 
   size_t count = 4;
-  char* default_args[] = { "6", "16", "24", "32" };
-  char** args = default_args;
+  const char* default_args[] = { "6", "16", "24", "32" };
+  const char** args = &default_args[0];
   if (argc > 2) {
     count = argc - 1;
     args = argv + 1;
