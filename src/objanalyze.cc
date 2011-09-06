@@ -19,6 +19,35 @@ exit;
 #include "mesh.h"
 #include "optimize.h"
 
+// Return cache misses from a simulated FIFO cache.
+size_t CountFifoCacheMisses(const IndexList& indices, const size_t cache_size) {
+  static const size_t kMaxCacheSize = 32;
+  static const int kUnknownIndex = -1;
+  CHECK(cache_size <= kMaxCacheSize);
+  int fifo[kMaxCacheSize + 1];
+  for (size_t i = 0; i < cache_size; ++i) {
+    fifo[i] = kUnknownIndex;
+  }
+  size_t misses = 0;
+  for (size_t i = 0; i < indices.size(); ++i) {
+    const int idx = indices[i];
+    // Use a sentry to simplify the FIFO search.
+    fifo[cache_size] = idx;
+    size_t at = 0;
+    while (fifo[at] != idx) ++at;
+    if (at == cache_size) {
+      ++misses;
+      int write_idx = idx;
+      for (size_t j = 0; j < cache_size; ++j) {
+        const int swap_idx = fifo[j];
+        fifo[j] = write_idx;
+        write_idx = swap_idx;
+      }
+    }
+  }
+  return misses;
+}
+
 void PrintCacheAnalysisRow(const IndexList& indices, const size_t cache_size,
                            const size_t num_verts, const size_t num_tris) {
   const size_t misses = CountFifoCacheMisses(indices, cache_size);
@@ -71,7 +100,8 @@ int main(int argc, const char* argv[]) {
   PrintCacheAnalysisTable(count, args, draw_mesh.indices,
                           num_verts, num_tris);
   QuantizedAttribList attribs;
-  AttribsToQuantizedAttribs(meshes[0].attribs, &attribs);
+  BoundsParams bounds_params;
+  AttribsToQuantizedAttribs(meshes[0].attribs, &bounds_params, &attribs);
   QuantizedAttribList optimized_attribs;
   IndexList optimized_indices;
   VertexOptimizer vertex_optimizer(attribs, meshes[0].indices);

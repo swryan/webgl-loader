@@ -66,9 +66,7 @@ class VertexOptimizer {
     uint16* attribs_out = &attribs->at(0);
     int* indices_out = &indices->at(0);
     int next_unused_index = 0;
-    // Consume indices_, one triangle at a time. When a triangle is consumed from
-    // the middle of indices_, the last one is copied in to replace it so that we
-    // can shrink indices_ from the end.
+    // Consume indices_, one triangle at a time.
     for (size_t c = 0; c < per_tri_.size(); ++c) {
       const int best_triangle = FindBestTriangle();
       per_tri_[best_triangle].active = false;

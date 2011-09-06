@@ -521,21 +521,63 @@ uint16 Quantize(float f, float offset, float range, int bits) {
   return static_cast<uint16>(f_scaled / range - 0.5f);
 }
 
+struct BoundsParams {
+  static BoundsParams FromBounds(const Bounds& bounds) {
+    BoundsParams ret;
+    const float scale = UniformScaleFromBounds(bounds);
+    // Position. Use a uniform scale.
+    for (size_t i = 0; i < 3; ++i) {
+      ret.offsets[i] = -bounds.mins[i];
+      ret.scales[i] = scale;
+      ret.bits[i] = 14;
+    }
+    // TexCoord.
+    for (size_t i = 3; i < 5; ++i) {
+      ret.offsets[i] = -bounds.mins[i];
+      ret.scales[i] = bounds.maxes[i] - bounds.mins[i];
+      ret.bits[i] = 10;
+    }
+    // Normal. Always uniform range.
+    for (size_t i = 5; i < 8; ++i) {
+      ret.offsets[i] = 1.f;
+      ret.scales[i] = 2.f;
+      ret.bits[i] = 10;
+    }
+    return ret;
+  }
+
+  void DumpJson() {
+    puts("{");
+    printf("  offsets: [%f,%f,%f,%f,%f,%f,%f,%f],\n",
+           offsets[0], offsets[1], offsets[2], offsets[3],
+           offsets[4], offsets[5], offsets[6], offsets[7]);
+    printf("  scales: [%f,%f,%f,%f,%f,%f,%f,%f],\n",
+           scales[0], scales[1], scales[2], scales[3],
+           scales[4], scales[5], scales[6], scales[7]);
+    printf("  bits: [%d,%d,%d,%d,%d,%d,%d,%d]\n",
+           bits[0], bits[1], bits[2], bits[3],
+           bits[4], bits[5], bits[6], bits[7]);
+    puts("};");
+  }
+  
+  float offsets[8];
+  float scales[8];
+  int bits[8];
+};
+
+// TODO: make "bounds_params" an in/out parameter.
 void AttribsToQuantizedAttribs(const AttribList& interleaved_attribs,
+                               BoundsParams* bounds_params,
                                QuantizedAttribList* quantized_attribs) {
   const Bounds bounds = BoundsFromAttribs(interleaved_attribs);
-  const float scale = UniformScaleFromBounds(bounds);
   quantized_attribs->resize(interleaved_attribs.size());
-  const float offsets[8] = { -bounds.mins[0], -bounds.mins[1], -bounds.mins[2],
-                             -bounds.mins[3], -bounds.mins[4], 1.f, 1.f, 1.f };
-  const float scales[8] = { scale, scale, scale,
-                            bounds.maxes[3] - bounds.mins[3],
-                            bounds.maxes[4] - bounds.mins[4], 2.f, 2.f, 2.f };
-  const int bits[8] = { 14, 14, 14, 10, 10, 10, 10, 10 };
+  *bounds_params = BoundsParams::FromBounds(bounds);
   for (size_t i = 0; i < interleaved_attribs.size(); i += 8) {
     for (size_t j = 0; j < 8; ++j) {
       quantized_attribs->at(i + j) = Quantize(interleaved_attribs[i + j],
-                                              offsets[j], scales[j], bits[j]);
+                                              bounds_params->offsets[j],
+                                              bounds_params->scales[j],
+                                              bounds_params->bits[j]);
     }
   }
 }
@@ -591,35 +633,6 @@ void CompressMeshToFile(const QuantizedAttribList& attribs,
   FILE* fp = fopen(fn, "wb");
   fwrite(&utf8[0], 1, utf8.size(), fp);
   fclose(fp);
-}
-
-// Return cache misses from a simulated FIFO cache.
-size_t CountFifoCacheMisses(const IndexList& indices, const size_t cache_size) {
-  static const size_t kMaxCacheSize = 32;
-  static const int kUnknownIndex = -1;
-  CHECK(cache_size <= kMaxCacheSize);
-  int fifo[kMaxCacheSize + 1];
-  for (size_t i = 0; i < cache_size; ++i) {
-    fifo[i] = kUnknownIndex;
-  }
-  size_t misses = 0;
-  for (size_t i = 0; i < indices.size(); ++i) {
-    const int idx = indices[i];
-    // Use a sentry to simplify the FIFO search.
-    fifo[cache_size] = idx;
-    size_t at = 0;
-    while (fifo[at] != idx) ++at;
-    if (at == cache_size) {
-      ++misses;
-      int write_idx = idx;
-      for (size_t j = 0; j < cache_size; ++j) {
-        const int swap_idx = fifo[j];
-        fifo[j] = write_idx;
-        write_idx = swap_idx;
-      }
-    }
-  }
-  return misses;
 }
 
 #endif  // WEBGL_LOADER_MESH_H_

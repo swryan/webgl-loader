@@ -19,15 +19,10 @@ exit;
 #include "mesh.h"
 #include "optimize.h"
 
-const bool kQuantize = true;
-const bool kOptimize = true;
-
-int main(int argc, char* argv[]) {
-  if (argc < 2 || argc > 3) {
-    fprintf(stderr, "Usage: %s in.obj [out.utf8]\n\n"
-            "\tIf 'out' is specified, then attempt to write out a compressed,\n"
-            "\tUTF-8 version to 'out.'\n\n"
-            "\tIf not, write a JSON version to STDOUT.\n\n",
+int main(int argc, const char* argv[]) {
+  if (argc != 3) {
+    fprintf(stderr, "Usage: %s in.obj out.utf8\n\n"
+            "\tCompress in.obj to out.utf8 and write bounds to STDOUT.\n\n",
             argv[0]);
     return -1;
   }
@@ -36,27 +31,14 @@ int main(int argc, char* argv[]) {
   fclose(fp);
   std::vector<DrawMesh> meshes;
   obj.CreateDrawMeshes(&meshes);
-  if (kQuantize) {
-    QuantizedAttribList attribs;
-    AttribsToQuantizedAttribs(meshes[0].attribs, &attribs);
-    if (kOptimize) {
-      QuantizedAttribList optimized_attribs;
-      IndexList optimized_indices;
-      VertexOptimizer vertex_optimizer(attribs, meshes[0].indices);
-      vertex_optimizer.GetOptimizedMesh(&optimized_attribs, &optimized_indices);
-      if (argc == 3) {
-        CompressMeshToFile(optimized_attribs, optimized_indices, argv[2]);
-      } else {
-        DumpJsonFromQuantizedAttribs(optimized_attribs);
-        DumpJsonFromIndices(optimized_indices);
-      }
-      return 0;
-    } else {
-      DumpJsonFromQuantizedAttribs(attribs);
-    }
-  } else {
-    DumpJsonFromInterleavedAttribs(meshes[0].attribs);
-  }
-  DumpJsonFromIndices(meshes[0].indices);
+  QuantizedAttribList attribs;
+  BoundsParams bounds_params;
+  AttribsToQuantizedAttribs(meshes[0].attribs, &bounds_params, &attribs);
+  QuantizedAttribList optimized_attribs;
+  IndexList optimized_indices;
+  VertexOptimizer vertex_optimizer(attribs, meshes[0].indices);
+  vertex_optimizer.GetOptimizedMesh(&optimized_attribs, &optimized_indices);
+  CompressMeshToFile(optimized_attribs, optimized_indices, argv[2]);
+  bounds_params.DumpJson();
   return 0;
 }
