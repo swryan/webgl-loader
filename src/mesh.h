@@ -60,7 +60,9 @@ void DumpJsonFromIndices(const IndexList& indices) {
 // attribute.
 class ShortFloatList {
  public:
-  static const size_t kMaxNumFloats = 4;
+  // MeshLab can create position attributes with
+  // color coordinates like: v x y z r g b
+  static const size_t kMaxNumFloats = 6;
   ShortFloatList()
       : size_(0)
   {
@@ -74,6 +76,8 @@ class ShortFloatList {
   }
 
   // Parse up to kMaxNumFloats from C string.
+  // TODO: this should instead return endptr, since size
+  // is recoverable.
   size_t ParseLine(const char* line) {
     for (size_ = 0; size_ != kMaxNumFloats; ++size_) {
       char* endptr = NULL;
@@ -249,13 +253,25 @@ class WavefrontObjFile {
           draw_mesh.attribs.push_back(
               positions_[positionDim() * position_index + i]);
         }
-        for (size_t i = 0; i < texcoordDim(); ++i) {
-          draw_mesh.attribs.push_back(
-              texcoords_[texcoordDim() * texcoord_index + i]);
+        if (texcoord_index == -1) {
+          for (size_t i = 0; i < texcoordDim(); ++i) {
+            draw_mesh.attribs.push_back(0);
+          }
+        } else {
+          for (size_t i = 0; i < texcoordDim(); ++i) {
+            draw_mesh.attribs.push_back(
+                texcoords_[texcoordDim() * texcoord_index + i]);
+          }
         }
-        for (size_t i = 0; i < normalDim(); ++i) {
-          draw_mesh.attribs.push_back(
-              normals_[normalDim() * normal_index + i]);
+        if (normal_index == -1) {
+          for (size_t i = 0; i < normalDim(); ++i) {
+            draw_mesh.attribs.push_back(0);
+          }
+        } else {
+          for (size_t i = 0; i < normalDim(); ++i) {
+            draw_mesh.attribs.push_back(
+                normals_[normalDim() * normal_index + i]);
+          }
         }
       }
     }
@@ -267,6 +283,8 @@ class WavefrontObjFile {
            normals_.size(), faces_.size());
   }
  private:
+  WavefrontObjFile() { }
+  
   void ParseFile(FILE* fp) {
     // TODO: don't use a fixed-size buffer.
     const size_t kLineBufferSize = 256;
@@ -302,13 +320,13 @@ class WavefrontObjFile {
         WarnLine("line unspported", line_num);
         break;
       case 'u':
-        WarnLine("usemtl (?) unsupported", line_num);
+        ParseUsemtl(line + 6, line_num);
         break;
       case 'm':
-        WarnLine("mtllib (?) unsupported", line_num);
+        ParseMtllib(line + 6, line_num);
         break;
       case 's':
-        WarnLine("s unsupported", line_num);
+        ParseSmoothingGroup(line + 1, line_num);
         break;
       default:
         WarnLine("unknown keyword", line_num);
@@ -331,14 +349,17 @@ class WavefrontObjFile {
   }
 
   void ParsePosition(const ShortFloatList& floats, unsigned int line_num) {
-    if (floats.size() != positionDim()) {
+    if (floats.size() != positionDim() &&
+        floats.size() != 6) {  // ignore r g b for now.
       ErrorLine("bad position", line_num);
     }
-    floats.AppendTo(&positions_);
+    floats.AppendNTo(&positions_, positionDim());
   }
 
   void ParseTexCoord(const ShortFloatList& floats, unsigned int line_num) {
     if ((floats.size() < 1) || (floats.size() > 3)) {
+      // TODO: correctly handle 3-D texcoords intead of just
+      // truncating.
       ErrorLine("bad texcoord", line_num);
     }
     floats.AppendNTo(&texcoords_, texcoordDim());
@@ -392,23 +413,54 @@ class WavefrontObjFile {
   const char* ParseIndices(const char* line, unsigned int line_num,
                            int* position_index, int* texcoord_index,
                            int* normal_index) {
-    int bytes_consumed = 0;
-    int indices_parsed = sscanf(line, "%d/%d/%d%n",
-                                position_index, texcoord_index, normal_index,
-                                &bytes_consumed);
-    if (indices_parsed != 3) {
+    const char* endptr = NULL;
+    *position_index = strtoint(line, &endptr);
+    if (*position_index == 0) {
       return NULL;
     }
-
-    if (*position_index <= 0 || *texcoord_index <= 0 || *normal_index <= 0 ) {
-      ErrorLine("bad index format", line_num);
+    if (endptr != NULL && *endptr == '/') {
+      *texcoord_index = strtoint(endptr + 1, &endptr);
+    } else {
+      *texcoord_index = *normal_index = 0;
     }
-    
-    return line + bytes_consumed;
+    if (endptr != NULL && *endptr == '/') {
+      *normal_index = strtoint(endptr + 1, &endptr);
+    } else {
+      *normal_index = 0;
+    }
+    return endptr;
   }
   
   void ParseGroup(const char* line, unsigned int line_num) {
-    WarnLine("group unsupported", line_num);
+    static bool once = true;
+    if (once) {
+      WarnLine("group unsupported", line_num);
+      once = false;
+    }
+  }
+
+  void ParseSmoothingGroup(const char* line, unsigned int line_num) {
+    static bool once = true;
+    if (once) {
+      WarnLine("s unsupported", line_num);
+      once = false;
+    }
+  }
+
+  void ParseMtllib(const char* line, unsigned int line_num) {
+    static bool once = true;
+    if (once) {
+      WarnLine("mtllib (?) unsupported", line_num);
+      once = false;
+    }
+  }
+
+  void ParseUsemtl(const char* line, unsigned int line_num) {
+    static bool once = true;
+    if (once) {
+      WarnLine("usemtl (?) unsupported", line_num);
+      once = false;
+    }
   }
 
   void WarnLine(const char* why, unsigned int line_num) {

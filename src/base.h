@@ -15,6 +15,7 @@
 #define WEBGL_LOADER_BASE_H_
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <vector>
 
@@ -44,6 +45,10 @@ struct WebGLMesh {
 };
 
 typedef std::vector<WebGLMesh> WebGLMeshList;
+
+static inline int strtoint(const char* str, const char** endptr) {
+  return static_cast<int>(strtol(str, const_cast<char**>(endptr), 10));
+}
 
 // TODO: Visual Studio calls this someting different.
 #ifdef putc_unlocked
