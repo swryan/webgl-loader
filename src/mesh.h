@@ -638,7 +638,8 @@ uint16 ZigZag(int16 word) {
   return (word >> 15) ^ (word << 1);
 }
 
-void CompressIndicesToUtf8(const IndexList& list, std::vector<char>* utf8) {
+void CompressIndicesToUtf8(const OptimizedIndexList& list,
+                           std::vector<char>* utf8) {
   // For indices, we don't do delta from the most recent index, but
   // from the high water mark. The assumption is that the high water
   // mark only ever moves by one at a time. Foruntately, the vertex
@@ -671,7 +672,7 @@ void CompressQuantizedAttribsToUtf8(const QuantizedAttribList& attribs,
 }
 
 void CompressMeshToFile(const QuantizedAttribList& attribs,
-                        const IndexList& indices,
+                        const OptimizedIndexList& indices,
                         const char* fn) {
   CHECK((attribs.size() & 7) == 0);
   const size_t num_verts = attribs.size() / 8;

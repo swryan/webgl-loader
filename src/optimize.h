@@ -54,18 +54,16 @@ class VertexOptimizer {
     for (size_t i = 0; i < per_vertex_.size(); ++i) {
       VertexData& vertex_data = per_vertex_[i];
       vertex_data.cache_tag = kCacheSize;
-      vertex_data.output_index = kUnknownIndex;
+      vertex_data.output_index = kMaxOutputIndex;
       vertex_data.UpdateScore();
     }
   }
 
-  void GetOptimizedMesh(QuantizedAttribList* attribs, IndexList* indices) {
-    attribs->resize(attribs_.size());
-    indices->resize(indices_.size());
+  void GetOptimizedMeshes(WebGLMeshList* meshes) {
+    meshes->push_back(WebGLMesh());
+    WebGLMesh* mesh = &meshes->back();
 
-    uint16* attribs_out = &attribs->at(0);
-    int* indices_out = &indices->at(0);
-    int next_unused_index = 0;
+    uint16 next_unused_index = 0;
     // Consume indices_, one triangle at a time.
     for (size_t c = 0; c < per_tri_.size(); ++c) {
       const int best_triangle = FindBestTriangle();
@@ -77,6 +75,7 @@ class VertexOptimizer {
         VertexData& vertex_data = per_vertex_[index];
         // Remove the triangle from the vertex->face list. We are
         // guaranteed to find it, so we can use a really simple loop.
+        // TODO: make this a function.
         FaceList::iterator face = vertex_data.faces.begin();
         while (*face != best_triangle) ++face;
         *face = vertex_data.faces.back();
@@ -85,8 +84,8 @@ class VertexOptimizer {
         InsertIndexToCache(index);
         const int cached_output_index = per_vertex_[index].output_index;
         // Have we seen this index before?
-        if (cached_output_index != kUnknownIndex) {
-          *indices_out++ = cached_output_index;
+        if (cached_output_index != kMaxOutputIndex) {
+          mesh->indices.push_back(cached_output_index);
           continue;
         }
         // The first time we see an index, not only do we increment
@@ -95,17 +94,30 @@ class VertexOptimizer {
         // TODO: do quantization here?
         per_vertex_[index].output_index = next_unused_index;
         for (size_t j = 0; j < 8; ++j) {
-          *attribs_out++ = attribs_[8*index + j];
+          mesh->attribs.push_back(attribs_[8*index + j]);
         }
-        *indices_out++ = next_unused_index++;
+        mesh->indices.push_back(next_unused_index++);
+      }
+      if (next_unused_index > kMaxOutputIndex - 3) {
+        // Might not be enough room for another triangle. Is it worth
+        // figuring out which other triangles can be added given the
+        // verties already added? Then, perhaps re-optimizing?
+        next_unused_index = 0;
+        meshes->push_back(WebGLMesh());
+        mesh = &meshes->back();
+        for (size_t i = 0; i <= kCacheSize; ++i) {
+          cache_[i] = kUnknownIndex;
+        }
       }
     }
   }
  private:
   static const int kUnknownIndex = -1;
-  static const size_t kCacheSize = 32;
+  static const uint16 kMaxOutputIndex = 0xD800;
+  static const size_t kCacheSize = 32;  // Does larger improve compression?
 
   struct VertexData {
+    // Should this also update scores for incident triangles?
     void UpdateScore() {
       const size_t active_tris = faces.size();
       if (active_tris <= 0) {
@@ -139,8 +151,8 @@ class VertexOptimizer {
 
     FaceList faces;
     unsigned int cache_tag;  // kCacheSize means not in cache.
-    int output_index;
     float score;
+    uint16 output_index;
   };
 
   int FindBestTriangle() {
@@ -171,6 +183,8 @@ class VertexOptimizer {
         }
       }
     }
+    // TODO: keep a range of active triangles to make the slow scan a
+    // little faster. Does this ever happen?
     if (best_triangle == -1) {
       // If no triangles can be found through the cache (e.g. for the
       // first triangle) go through all the active triangles and find
@@ -194,6 +208,7 @@ class VertexOptimizer {
 
   struct TriangleData {
     bool active;  // true iff triangle has not been optimized and emitted.
+    // TODO: eliminate some wasted computation by using this cache.
     // float score;
   };
 
@@ -232,7 +247,7 @@ class VertexOptimizer {
   }
 
   const QuantizedAttribList& attribs_;
-  IndexList indices_;
+  const IndexList& indices_;
   std::vector<VertexData> per_vertex_;
   std::vector<TriangleData> per_tri_;
   int cache_[kCacheSize + 1];

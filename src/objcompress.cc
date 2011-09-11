@@ -34,11 +34,11 @@ int main(int argc, const char* argv[]) {
   QuantizedAttribList attribs;
   BoundsParams bounds_params;
   AttribsToQuantizedAttribs(meshes[0].attribs, &bounds_params, &attribs);
-  QuantizedAttribList optimized_attribs;
-  IndexList optimized_indices;
+  WebGLMeshList webgl_meshes;
   VertexOptimizer vertex_optimizer(attribs, meshes[0].indices);
-  vertex_optimizer.GetOptimizedMesh(&optimized_attribs, &optimized_indices);
-  CompressMeshToFile(optimized_attribs, optimized_indices, argv[2]);
+  vertex_optimizer.GetOptimizedMeshes(&webgl_meshes);
+  CHECK(1 == webgl_meshes.size());
+  CompressMeshToFile(webgl_meshes[0].attribs, webgl_meshes[0].indices, argv[2]);
   bounds_params.DumpJson();
   return 0;
 }

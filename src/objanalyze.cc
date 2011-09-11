@@ -20,7 +20,8 @@ exit;
 #include "optimize.h"
 
 // Return cache misses from a simulated FIFO cache.
-size_t CountFifoCacheMisses(const IndexList& indices, const size_t cache_size) {
+template <typename IndexListT>
+size_t CountFifoCacheMisses(const IndexListT& indices, const size_t cache_size) {
   static const size_t kMaxCacheSize = 32;
   static const int kUnknownIndex = -1;
   CHECK(cache_size <= kMaxCacheSize);
@@ -48,7 +49,8 @@ size_t CountFifoCacheMisses(const IndexList& indices, const size_t cache_size) {
   return misses;
 }
 
-void PrintCacheAnalysisRow(const IndexList& indices, const size_t cache_size,
+template <typename IndexListT>
+void PrintCacheAnalysisRow(const IndexListT& indices, const size_t cache_size,
                            const size_t num_verts, const size_t num_tris) {
   const size_t misses = CountFifoCacheMisses(indices, cache_size);
   const double misses_as_double = static_cast<double>(misses);
@@ -56,8 +58,9 @@ void PrintCacheAnalysisRow(const IndexList& indices, const size_t cache_size,
          misses_as_double / num_verts, misses_as_double / num_tris);
 }
 
+template <typename IndexListT>
 void PrintCacheAnalysisTable(const size_t count, const char** args,
-                             const IndexList& indices, 
+                             const IndexListT& indices, 
                              const size_t num_verts, const size_t num_tris) {
   puts("||Cache Size||# misses||ATVR||ACMR||");
   for (size_t i = 0; i < count; ++i) {
@@ -102,13 +105,13 @@ int main(int argc, const char* argv[]) {
   QuantizedAttribList attribs;
   BoundsParams bounds_params;
   AttribsToQuantizedAttribs(meshes[0].attribs, &bounds_params, &attribs);
-  QuantizedAttribList optimized_attribs;
-  IndexList optimized_indices;
   VertexOptimizer vertex_optimizer(attribs, meshes[0].indices);
-  vertex_optimizer.GetOptimizedMesh(&optimized_attribs, &optimized_indices);
+  WebGLMeshList webgl_meshes;
+  vertex_optimizer.GetOptimizedMeshes(&webgl_meshes);
+  CHECK(1 == webgl_meshes.size());
 
   puts("\nAfter:\n");
-  PrintCacheAnalysisTable(count, args, optimized_indices,
+  PrintCacheAnalysisTable(count, args, webgl_meshes[0].indices,
                           num_verts, num_tris);
 
   return 0;
