@@ -13,18 +13,13 @@ precision highp float;
 uniform mat4 u_mvp;
 
 attribute vec3 a_position;
-attribute vec2 a_texcoord;
 attribute vec3 a_normal;
 
-varying vec2 v_texcoord;
 varying vec3 v_normal;
 
 void main(void) {
-    // Fixup the offsets in the vertex shader. These really ought
-    // ought to happen in the loader or transform matrices.
-    v_normal    = vec3(u_mvp * vec4(a_normal - vec3(512), 0.0));
-    v_texcoord  = a_texcoord;
-    gl_Position = u_mvp * vec4(a_position - vec3(4096), 8192.0);
+   v_normal    = vec3(u_mvp * vec4(a_normal, 0.0));
+   gl_Position = u_mvp * vec4(a_position, 1.0);
 }
 </script>
 
@@ -34,7 +29,6 @@ precision highp float;
 #endif
 
 varying vec3 v_normal;
-varying vec2 v_texcoord;
 
 void main(void) {
     // Simple, soft directional lighting.

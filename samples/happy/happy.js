@@ -17,12 +17,26 @@ function DecompressMesh(str) {
 
   var attribs_out = new Float32Array(8 * num_verts);
   var offset = 1;
-  for (var i = 0; i < 8; ++i) {
+  var pos_scale = 1.0 / 8192.0;
+  for (var i = 0; i < 3; ++i) {
     var prev_attrib = 0;
     for (var j = 0; j < num_verts; ++j) {
       var code = str.charCodeAt(j + offset);
       prev_attrib += (code >> 1) ^ (-(code & 1));
-      attribs_out[8*j + i] = prev_attrib;
+      attribs_out[8*j + i] = pos_scale*(prev_attrib - 4096);
+    }
+    offset += num_verts;
+  }
+  for (var i = 3; i < 5; ++i) {
+    // Skip decoding texcoords.
+    offset += num_verts;
+  }
+  for (var i = 5; i < 8; ++i) {
+    var prev_attrib = 0;
+    for (var j = 0; j < num_verts; ++j) {
+      var code = str.charCodeAt(j + offset);
+      prev_attrib += (code >> 1) ^ (-(code & 1));
+      attribs_out[8*j + i] = prev_attrib - 512;
     }
     offset += num_verts;
   }
@@ -54,12 +68,10 @@ function Mesh(gl, attribs_indices) {
 
 Mesh.prototype.BindAndDraw = function(gl, program) {
   var position_index = program.set_attrib["a_position"];
-  var texcoord_index = program.set_attrib["a_texcoord"];
   var normal_index = program.set_attrib["a_normal"];
 
   gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
   gl.vertexAttribPointer(position_index, 3, gl.FLOAT, false, 32, 0);
-  gl.vertexAttribPointer(texcoord_index, 2, gl.FLOAT, false, 32, 12);
   gl.vertexAttribPointer(normal_index, 3, gl.FLOAT, false, 32, 20);
   
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo);

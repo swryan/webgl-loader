@@ -5,12 +5,32 @@ function DecompressMesh(str) {
 
   var attribs_out = new Float32Array(8 * num_verts);
   var offset = 1;
-  for (var i = 0; i < 8; i++) {
+  var pos_scale = 1.0 / 8191.0;
+  for (var i = 0; i < 3; ++i) {
     var prev_attrib = 0;
     for (var j = 0; j < num_verts; ++j) {
       var code = str.charCodeAt(j + offset);
       prev_attrib += (code >> 1) ^ (-(code & 1));
-      attribs_out[8*j + i] = prev_attrib;
+      attribs_out[8*j + i] = pos_scale*(prev_attrib - 4096);
+    }
+    offset += num_verts;
+  }
+  var texcoord_scale = 1.0 / 1023.0;
+  for (var i = 3; i < 5; ++i) {
+    var prev_attrib = 0;
+    for (var j = 0; j < num_verts; ++j) {
+      var code = str.charCodeAt(j + offset);
+      prev_attrib += (code >> 1) ^ (-(code & 1));
+      attribs_out[8*j + i] = texcoord_scale * prev_attrib;
+    }
+    offset += num_verts;
+  }
+  for (var i = 5; i < 8; ++i) {
+    var prev_attrib = 0;
+    for (var j = 0; j < num_verts; ++j) {
+      var code = str.charCodeAt(j + offset);
+      prev_attrib += (code >> 1) ^ (-(code & 1));
+      attribs_out[8*j + i] = prev_attrib - 512;
     }
     offset += num_verts;
   }
@@ -49,6 +69,19 @@ load : function(gl)
       new Shader(gl, simpleFsrc, gl.FRAGMENT_SHADER)]);
   this.program = program;
   program.use();
+
+  var texture = gl.createTexture();
+  function loadTexture(texture, image) {
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+    gl.generateMipmap(gl.TEXTURE_2D);
+  }
+  loadTexture(texture, document.getElementById("texture"));
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.uniform1i(program.set_uniform["u_texture"], 0);
 
   var self = this;
   function BindVertexBuffers(mesh) {
@@ -110,7 +143,6 @@ draw : function(gl)
 
   this.xform.model.loadIdentity();
   this.xform.model.rotate(sglDegToRad(this.angle), 0.0, 1.0, 0.0);
-  this.xform.model.scale(1.5, 1.5, 1.5);
 
   gl.uniformMatrix4fv(this.program.set_uniform["u_mvp"], false,
                       this.xform.modelViewProjectionMatrix);
