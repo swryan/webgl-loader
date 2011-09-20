@@ -62,6 +62,7 @@ template <typename IndexListT>
 void PrintCacheAnalysisTable(const size_t count, const char** args,
                              const IndexListT& indices, 
                              const size_t num_verts, const size_t num_tris) {
+  printf("%zu vertices, %zu triangles\n\n", num_verts, num_tris);
   puts("||Cache Size||# misses||ATVR||ACMR||");
   for (size_t i = 0; i < count; ++i) {
     int cache_size = atoi(args[i]);
@@ -86,10 +87,6 @@ int main(int argc, const char* argv[]) {
   std::vector<DrawMesh> meshes;
   obj.CreateDrawMeshes(&meshes);
   const DrawMesh& draw_mesh = meshes[0];
-  const size_t num_verts = draw_mesh.attribs.size() / 8;
-  const size_t num_tris = draw_mesh.indices.size() / 3;
-
-  printf("%zu vertices, %zu triangles\n\n", num_verts, num_tris);
 
   size_t count = 4;
   const char* default_args[] = { "6", "16", "24", "32" };
@@ -98,21 +95,23 @@ int main(int argc, const char* argv[]) {
     count = argc - 1;
     args = argv + 1;
   }
-  
-  puts("Before:\n");
+
+  puts("\nBefore:\n");
   PrintCacheAnalysisTable(count, args, draw_mesh.indices,
-                          num_verts, num_tris);
+                          draw_mesh.attribs.size() / 8,
+                          draw_mesh.indices.size() / 3);
+
   QuantizedAttribList attribs;
   BoundsParams bounds_params;
   AttribsToQuantizedAttribs(meshes[0].attribs, &bounds_params, &attribs);
   VertexOptimizer vertex_optimizer(attribs, meshes[0].indices);
   WebGLMeshList webgl_meshes;
   vertex_optimizer.GetOptimizedMeshes(&webgl_meshes);
-  CHECK(1 == webgl_meshes.size());
-
-  puts("\nAfter:\n");
-  PrintCacheAnalysisTable(count, args, webgl_meshes[0].indices,
-                          num_verts, num_tris);
-
+  for (size_t i = 0; i < webgl_meshes.size(); ++i) {
+    puts("\nAfter:\n");
+    PrintCacheAnalysisTable(count, args, webgl_meshes[i].indices,
+                            webgl_meshes[i].attribs.size() / 8,
+                            webgl_meshes[i].indices.size() / 3);
+  }
   return 0;
 }

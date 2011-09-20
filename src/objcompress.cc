@@ -16,6 +16,8 @@ exit;
 // implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
+#include <sstream>
+
 #include "mesh.h"
 #include "optimize.h"
 
@@ -37,8 +39,25 @@ int main(int argc, const char* argv[]) {
   WebGLMeshList webgl_meshes;
   VertexOptimizer vertex_optimizer(attribs, meshes[0].indices);
   vertex_optimizer.GetOptimizedMeshes(&webgl_meshes);
-  CHECK(1 == webgl_meshes.size());
-  CompressMeshToFile(webgl_meshes[0].attribs, webgl_meshes[0].indices, argv[2]);
+  if (webgl_meshes.size() > 1) {
+    CHECK(26 >= webgl_meshes.size());
+    for (size_t i = 0; i < webgl_meshes.size(); ++i) {
+      std::string out(argv[2]);
+      // Strip off trailing ".utf8" if present.
+      if ((5 < out.size()) && (out.substr(out.size() - 5) == ".utf8")) {
+        out = out.substr(0, out.size() - 5);
+      }
+      out += '.';
+      out += 'A' + i;
+      out += ".utf8";
+      CompressMeshToFile(webgl_meshes[i].attribs, webgl_meshes[i].indices,
+                         out.c_str());
+    }
+  } else {
+    CHECK(1 == webgl_meshes.size());
+    CompressMeshToFile(webgl_meshes[0].attribs, webgl_meshes[0].indices,
+                       argv[2]);
+  }
   bounds_params.DumpJson();
   return 0;
 }
