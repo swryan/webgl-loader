@@ -58,8 +58,8 @@ static inline int strtoint(const char* str, const char** endptr) {
 #endif  // putc_unlocked
 
 #ifndef CHECK
-# define CHECK(PRED) if (!(PRED)) {                             \
-    fprintf(stderr, "%d: CHECK failed: " #PRED "\n", __LINE__); \
+# define CHECK(PRED) if (!(PRED)) {                                     \
+    fprintf(stderr, "%s:%d CHECK failed: " #PRED "\n", __FILE__, __LINE__); \
     exit(-1); } else
 #endif  // CHECK
 

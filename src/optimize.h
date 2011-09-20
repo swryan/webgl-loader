@@ -108,6 +108,9 @@ class VertexOptimizer {
         for (size_t i = 0; i <= kCacheSize; ++i) {
           cache_[i] = kUnknownIndex;
         }
+        for (size_t i = 0; i <= per_vertex_.size(); ++i) {
+          per_vertex_[i].output_index = kMaxOutputIndex;
+        }
       }
     }
   }
