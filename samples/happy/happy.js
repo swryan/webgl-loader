@@ -1,16 +1,33 @@
+var out = window.document.getElementById('output');
+
+var decode_ms = 0;
+
+var start_drawing = false;
+
+function UpdateDecode(ms) {
+  decode_ms += ms;
+}
+
+function UpdateTotal(ms) {
+  start_drawing = true;
+  out.innerHTML = "Decode time: " + decode_ms +
+      " ms, Total time: " + ms + " ms";
+}
+
 var urls = [ 'happy.A.utf8',
-	     'happy.B.utf8',
-	     'happy.C.utf8',
-	     'happy.D.utf8',
-	     'happy.E.utf8',
-	     'happy.F.utf8',
-	     'happy.G.utf8',
-	     'happy.H.utf8',
-	     'happy.I.utf8',
-	     'happy.J.utf8',
-	     'happy.K.utf8' ];
+             'happy.B.utf8',
+             'happy.C.utf8',
+             'happy.D.utf8',
+             'happy.E.utf8',
+             'happy.F.utf8',
+             'happy.G.utf8',
+             'happy.H.utf8',
+             'happy.I.utf8',
+             'happy.J.utf8',
+             'happy.K.utf8' ];
 
 function DecompressMesh(str) {
+  var start_time = Date.now();
   var num_verts = str.charCodeAt(0);
   if (num_verts >= 0xE000) num_verts -= 0x0800;
   num_verts++;
@@ -51,6 +68,7 @@ function DecompressMesh(str) {
       index_high_water_mark++;
     }
   }
+  UpdateDecode(Date.now() - start_time);
   return [attribs_out, indices_out];
 }
 
@@ -73,7 +91,7 @@ Mesh.prototype.BindAndDraw = function(gl, program) {
   gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
   gl.vertexAttribPointer(position_index, 3, gl.FLOAT, false, 32, 0);
   gl.vertexAttribPointer(normal_index, 3, gl.FLOAT, false, 32, 20);
-  
+
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo);
 
   gl.drawElements(gl.TRIANGLES, this.num_indices, gl.UNSIGNED_SHORT, 0);
@@ -108,12 +126,16 @@ load : function(gl)
   gl.enableVertexAttribArray(texcoord_index);
   gl.enableVertexAttribArray(normal_index);
 
+  var start_time = Date.now();
   var meshes = [];
   for (var i = 0; i < urls.length; ++i) {
     var req = new XMLHttpRequest();
     req.onload = function() {
       if (this.status == 0 || this.status == 200) {
-	meshes[meshes.length] = new Mesh(gl, DecompressMesh(this.responseText));
+        meshes[meshes.length] = new Mesh(gl, DecompressMesh(this.responseText));
+        if (meshes.length === urls.length) {
+          UpdateTotal(Date.now() - start_time);
+        }
       }
     };
     req.open('GET', urls[i], true);
@@ -150,7 +172,7 @@ draw : function(gl)
 
   gl.uniformMatrix4fv(this.program.set_uniform["u_mvp"], false,
                       this.xform.modelViewProjectionMatrix);
-  
+
   for (var i = 0; i < this.meshes.length; ++i) {
     var mesh = this.meshes[i];
     if (mesh) {
