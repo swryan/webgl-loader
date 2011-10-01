@@ -32,17 +32,12 @@ function EyeFromNDC(ndcXY) {
   return eyeFromEvt;
 }
 
-// TODO: Move to base. Cross-platform wheel support is surprisingly
-// fiddly!
-window.addEventListener('mousewheel', function(evt) {
+AddWheelHandler(window, function(dx, dy, evt) {
   var view = renderer.view_;
-  var wheelScale = 0.01;
-  var dollyX =  wheelScale * evt.wheelDeltaX;
-  var dollyZ = -wheelScale * evt.wheelDeltaY;
   EyeFromNDC(NDCFromEvent(evt));
-  vec3.scale(eyeFromEvt, dollyZ);
-  mat4.translate(view, [dollyX, 0, 0], view);
-  mat4.translate(view, eyeFromEvt, view);
+  vec3.scale(eyeFromEvt, dy);
+  mat4.translate(view, eyeFromEvt);
+  mat4.translate(view, [dx, 0, 0]);
   renderer.PostRedisplay();
   return false;
 });

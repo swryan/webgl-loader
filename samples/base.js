@@ -9,7 +9,7 @@ function Never() {
 // DOM.
 
 function ID(id) {
-  return document[id] || document.getElementById(id);
+  return document.getElementById(id);
 }
 
 function PreventDefaultAction(evt) {
@@ -36,12 +36,13 @@ function RemoveListeners(dom, listeners) {
   }
 }
 
+// drag(dx, dy, evt)
 function AddDragHandler(dom, drag) {
   var prevX_, prevY_;
 
   var LISTENERS = {
     mousemove: function(evt) {
-      drag(evt.screenX - prevX_, evt.screenY - prevY_);
+      drag(evt.screenX - prevX_, evt.screenY - prevY_, evt);
       prevX_ = evt.screenX;
       prevY_ = evt.screenY;
     },
@@ -56,6 +57,32 @@ function AddDragHandler(dom, drag) {
     AddListeners(document, LISTENERS);
   });
 }
+
+// wheel(dx, dy, evt)
+function AddWheelHandler(dom, wheel) {
+  if (dom.onmousewheel !== undefined) {
+    dom.addEventListener('mousewheel', function(evt) {
+      var wheelScale = 1/40;
+      if (evt.wheelDeltaX !== undefined) {
+        wheel(wheelScale * evt.wheelDeltaX, -wheelScale * evt.wheelDeltaY,
+              evt);
+      } else {
+        wheel(0, wheelScale * evt.wheelDelta, evt);
+      }
+    });
+  } else {  // Gecko
+    dom.addEventListener('DOMMouseScroll', function(evt) {
+      var wheelScale = 1/4;
+      // TODO: clamp large values of evt.detail?
+      var detail = wheelScale * evt.detail;
+      if (evt.axis !== undefined && evt.axis === evt.HORIZONTAL_AXIS) {
+        wheel(-detail, 0, evt);
+      } else {
+        wheel(0, detail, evt);
+      }
+    });
+  }
+};
 
 // Shim layer with setTimeout fallback, adapted from:
 // http://paulirish.com/2011/requestanimationframe-for-smart-animating/
