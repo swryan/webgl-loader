@@ -6,6 +6,10 @@ function Never() {
   return false;
 }
 
+function Clamp(val, minVal, maxVal) {
+  return (val < minVal) ? minVal : ((val > maxVal) ? maxVal : val);
+}
+
 // DOM.
 
 function ID(id) {
@@ -62,23 +66,19 @@ function AddDragHandler(dom, drag) {
 function AddWheelHandler(dom, wheel) {
   if (dom.onmousewheel !== undefined) {
     dom.addEventListener('mousewheel', function(evt) {
-      var wheelScale = 1/40;
       if (evt.wheelDeltaX !== undefined) {
-        wheel(wheelScale * evt.wheelDeltaX, -wheelScale * evt.wheelDeltaY,
-              evt);
+        wheel(evt.wheelDeltaX, evt.wheelDeltaY, evt);
       } else {
-        wheel(0, wheelScale * evt.wheelDelta, evt);
+        wheel(0, evt.wheelDelta, evt);
       }
     });
   } else {  // Gecko
-    dom.addEventListener('DOMMouseScroll', function(evt) {
-      var wheelScale = 1/4;
-      // TODO: clamp large values of evt.detail?
-      var detail = wheelScale * evt.detail;
-      if (evt.axis !== undefined && evt.axis === evt.HORIZONTAL_AXIS) {
-        wheel(-detail, 0, evt);
+    dom.addEventListener('MozMousePixelScroll', function(evt) {
+      var detail = evt.detail;
+      if (evt.axis === evt.HORIZONTAL_AXIS) {
+        wheel(detail, 0, evt);
       } else {
-        wheel(0, detail, evt);
+        wheel(0, -detail, evt);
       }
     });
   }

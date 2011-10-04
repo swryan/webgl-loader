@@ -33,11 +33,12 @@ function EyeFromNDC(ndcXY) {
 }
 
 AddWheelHandler(window, function(dx, dy, evt) {
+  var kWheelScale = 1.0/200;
   var view = renderer.view_;
   EyeFromNDC(NDCFromEvent(evt));
-  vec3.scale(eyeFromEvt, dy);
+  vec3.scale(eyeFromEvt, -kWheelScale*dy);
   mat4.translate(view, eyeFromEvt);
-  mat4.translate(view, [dx, 0, 0]);
+  mat4.translate(view, [kWheelScale*dx, 0, 0]);
   renderer.PostRedisplay();
   return false;
 });
