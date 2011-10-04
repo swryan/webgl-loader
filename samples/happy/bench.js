@@ -26,50 +26,89 @@ var URLS = [ 'happy.A.utf8',
              'happy.J.utf8',
              'happy.K.utf8' ];
 
-function DecompressMesh(str) {
-  var start_time = Date.now();
-  var num_verts = str.charCodeAt(0);
-  if (num_verts >= 0xE000) num_verts -= 0x0800;
-  num_verts++;
+var DEFAULT_ATTRIB_ARRAYS = {
+  a_position: {
+    size: 3,
+    stride: 8,
+    offset: 0,
+    decodeOffset: -4095,
+    decodeScale: 1/8191
+  },
+  a_texcoord: {
+    size: 2,
+    stride: 8,
+    offset: 3,
+    decodeOffset: 0,
+    decodeScale: 1/1023
+  },
+  a_normal: {
+    size: 3,
+    stride: 8,
+    offset: 5,
+    decodeOffset: -511,
+    decodeScale: 1/1023
+  }
+};
 
-  var attribs_out = new Float32Array(8 * num_verts);
-  var offset = 1;
-  var pos_scale = 1.0 / 8192.0;
-  for (var i = 0; i < 3; ++i) {
-    var prev_attrib = 0;
-    for (var j = 0; j < num_verts; ++j) {
-      var code = str.charCodeAt(j + offset);
-      prev_attrib += (code >> 1) ^ (-(code & 1));
-      attribs_out[8*j + i] = pos_scale*(prev_attrib - 4096);
-    }
-    offset += num_verts;
+function decompressInner_(str, inputStart, inputEnd,
+                          output, outputStart, stride,
+                          decodeOffset, decodeScale) {
+  var prev = 0;
+  for (var j = inputStart; j < inputEnd; j++) {
+    var code = str.charCodeAt(j);
+    prev += (code >> 1) ^ (-(code & 1));
+    output[outputStart] = decodeScale * (prev + decodeOffset);
+    outputStart += stride;
   }
-  for (var i = 3; i < 5; ++i) {
-    // Skip decoding texcoords.
-    offset += num_verts;
-  }
-  for (var i = 5; i < 8; ++i) {
-    var prev_attrib = 0;
-    for (var j = 0; j < num_verts; ++j) {
-      var code = str.charCodeAt(j + offset);
-      prev_attrib += (code >> 1) ^ (-(code & 1));
-      attribs_out[8*j + i] = prev_attrib - 512;
+}
+
+function decompressSimpleMesh(str, attribArrays) {
+  var numVerts = str.charCodeAt(0);
+  if (numVerts >= 0xE000) numVerts -= 0x0800;
+  numVerts++;
+
+  // Extract conversion parmaters from attribArrays.
+  var stride = attribArrays.a_position.stride;  // TODO: generalize.
+  var decodeOffsets = new Float32Array(stride);
+  var decodeScales = new Float32Array(stride);
+  for (var key in attribArrays) {
+    var attribArray = attribArrays[key];
+    var end = attribArray.offset + attribArray.size;
+    for (var i = attribArray.offset; i < end; i++) {
+      decodeOffsets[i] = attribArray.decodeOffset;
+      decodeScales[i] = attribArray.decodeScale;
     }
-    offset += num_verts;
   }
 
-  var num_indices = str.length - offset;
-  var indices_out = new Uint16Array(num_indices);
-  var index_high_water_mark = 0;
-  for (var i = 0; i < num_indices; ++i) {
-    var code = str.charCodeAt(i + offset);
-    indices_out[i] = index_high_water_mark - code;
+  // Decode attributes.
+  var inputOffset = 1;
+  var attribsOut = new Float32Array(stride * numVerts);
+  for (var i = 0; i < stride; i++) {
+    var end = inputOffset + numVerts;
+    var decodeScale = decodeScales[i];
+    if (decodeScale) {
+      // Assume if decodeScale is never set, simply ignore the
+      // attribute.
+      decompressInner_(str, inputOffset, end,
+                       attribsOut, i, stride,
+                       decodeOffsets[i], decodeScale);
+    }
+    inputOffset = end;
+  }
+
+  // Decode indices.
+  var numIndices = str.length - inputOffset;
+  var indicesOut = new Uint16Array(numIndices);
+  var highest = 0;
+  for (var i = 0; i < numIndices; i++) {
+    var code = str.charCodeAt(i + inputOffset);
+    indicesOut[i] = highest - code;
     if (code == 0) {
-      index_high_water_mark++;
+      highest++;
     }
   }
-  updateDecode(Date.now() - start_time);
-  return [attribs_out, indices_out];
+
+  return [attribsOut, indicesOut];
 }
 
 var meshes = [];
@@ -78,7 +117,10 @@ for (var i = 0; i < URLS.length; ++i) {
   var req = new XMLHttpRequest();
   req.onload = function() {
     if (this.status === 200 || this.status === 0) {
-      meshes[meshes.length] = DecompressMesh(this.responseText);
+      var decodeStart = Date.now();
+      meshes[meshes.length] =
+        decompressSimpleMesh(this.responseText, DEFAULT_ATTRIB_ARRAYS);
+      updateDecode(Date.now() - decodeStart);
       if (meshes.length === URLS.length) {
         updateTotal(Date.now() - start_time);
       }

@@ -4,6 +4,38 @@ var canvas = id('canvas');
 preventSelection(canvas);
 
 var renderer = new Renderer(canvas);
+var gl = renderer.gl_;
+
+var DEFAULT_ATTRIB_ARRAYS = {
+  a_position: {
+    size: 3,
+    stride: 8,
+    offset: 0,
+    decodeOffset: -4095,
+    decodeScale: 1/8191
+  },
+  a_texcoord: {
+    size: 2,
+    stride: 8,
+    offset: 3,
+    decodeOffset: 0,
+    decodeScale: 1/1023
+  },
+  a_normal: {
+    size: 3,
+    stride: 8,
+    offset: 5,
+    decodeOffset: -511,
+    decodeScale: 1/1023
+  }
+};
+
+var simpleVsrc = id('SIMPLE_VERTEX_SHADER').text;
+var simpleFsrc = id('SIMPLE_FRAGMENT_SHADER').text;
+renderer.program_ = new Program(gl, [vertexShader(gl, simpleVsrc),
+                                     fragmentShader(gl, simpleFsrc)]);
+renderer.program_.use();
+renderer.program_.enableVertexAttribArrays(DEFAULT_ATTRIB_ARRAYS);
 
 // TODO: instead of having these callbacks reach into Renderer's
 // internal state, factor such state into a single manager. This will
@@ -45,22 +77,12 @@ addWheelHandler(window, function(dx, dy, evt) {
 
 function onLoad(xhr) {
   if (xhr.status === 200 || xhr.status === 0) {
-    var gl = renderer.gl_;
-    var mesh = decompressMesh(xhr.responseText);
+    var mesh = decompressSimpleMesh(xhr.responseText, 
+                                    DEFAULT_ATTRIB_ARRAYS);
     renderer.numIndices_ = mesh[1].length;
     meshBufferData(gl, mesh);
 
-    var program = renderer.program_;
-    var position_index = program.set_attrib['a_position'];
-    var texcoord_index = program.set_attrib['a_texcoord'];
-    var normal_index = program.set_attrib['a_normal'];
-
-    gl.enableVertexAttribArray(position_index);
-    gl.enableVertexAttribArray(texcoord_index);
-    gl.enableVertexAttribArray(normal_index);
-    gl.vertexAttribPointer(position_index, 3, gl.FLOAT, false, 32, 0);
-    gl.vertexAttribPointer(texcoord_index, 2, gl.FLOAT, false, 32, 12);
-    gl.vertexAttribPointer(normal_index, 3, gl.FLOAT, false, 32, 20);
+    renderer.program_.vertexAttribPointers(DEFAULT_ATTRIB_ARRAYS);
 
     renderer.postRedisplay();
   }

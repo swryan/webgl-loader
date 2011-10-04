@@ -1,53 +1,67 @@
 'use strict';
 
-function decompressMesh(str) {
-  var num_verts = str.charCodeAt(0);
-  if (num_verts >= 0xE000) num_verts -= 0x0800;
-  num_verts++;
+// TODO: will it be an optimization to specialize this method at
+// runtime for different combinations of stride, decodeOffset and
+// decodeScale?
+function decompressInner_(str, inputStart, inputEnd,
+                          output, outputStart, stride,
+                          decodeOffset, decodeScale) {
+  var prev = 0;
+  for (var j = inputStart; j < inputEnd; j++) {
+    var code = str.charCodeAt(j);
+    prev += (code >> 1) ^ (-(code & 1));
+    output[outputStart] = decodeScale * (prev + decodeOffset);
+    outputStart += stride;
+  }
+}
 
-  var attribs_out = new Float32Array(8 * num_verts);
-  var offset = 1;
-  var pos_scale = 1.0 / 8191.0;
-  for (var i = 0; i < 3; ++i) {
-    var prev_attrib = 0;
-    for (var j = 0; j < num_verts; ++j) {
-      var code = str.charCodeAt(j + offset);
-      prev_attrib += (code >> 1) ^ (-(code & 1));
-      attribs_out[8*j + i] = pos_scale*(prev_attrib - 4096);
+function decompressSimpleMesh(str, attribArrays) {
+  var numVerts = str.charCodeAt(0);
+  if (numVerts >= 0xE000) numVerts -= 0x0800;
+  numVerts++;
+
+  // Extract conversion parmaters from attribArrays.
+  var stride = attribArrays.a_position.stride;  // TODO: generalize.
+  var decodeOffsets = new Float32Array(stride);
+  var decodeScales = new Float32Array(stride);
+  for (var key in attribArrays) {
+    var attribArray = attribArrays[key];
+    var end = attribArray.offset + attribArray.size;
+    for (var i = attribArray.offset; i < end; i++) {
+      decodeOffsets[i] = attribArray.decodeOffset;
+      decodeScales[i] = attribArray.decodeScale;
     }
-    offset += num_verts;
-  }
-  var texcoord_scale = 1.0 / 1023.0;
-  for (var i = 3; i < 5; ++i) {
-    var prev_attrib = 0;
-    for (var j = 0; j < num_verts; ++j) {
-      var code = str.charCodeAt(j + offset);
-      prev_attrib += (code >> 1) ^ (-(code & 1));
-      attribs_out[8*j + i] = texcoord_scale * prev_attrib;
-    }
-    offset += num_verts;
-  }
-  for (var i = 5; i < 8; ++i) {
-    var prev_attrib = 0;
-    for (var j = 0; j < num_verts; ++j) {
-      var code = str.charCodeAt(j + offset);
-      prev_attrib += (code >> 1) ^ (-(code & 1));
-      attribs_out[8*j + i] = prev_attrib - 512;
-    }
-    offset += num_verts;
   }
 
-  var num_indices = str.length - offset;
-  var indices_out = new Uint16Array(num_indices);
-  var index_high_water_mark = 0;
-  for (var i=0; i<num_indices; i++) {
-    var code = str.charCodeAt(i + offset);
-    indices_out[i] = index_high_water_mark - code;
+  // Decode attributes.
+  var inputOffset = 1;
+  var attribsOut = new Float32Array(stride * numVerts);
+  for (var i = 0; i < stride; i++) {
+    var end = inputOffset + numVerts;
+    var decodeScale = decodeScales[i];
+    if (decodeScale) {
+      // Assume if decodeScale is never set, simply ignore the
+      // attribute.
+      decompressInner_(str, inputOffset, end,
+                       attribsOut, i, stride,
+                       decodeOffsets[i], decodeScale);
+    }
+    inputOffset = end;
+  }
+
+  // Decode indices.
+  var numIndices = str.length - inputOffset;
+  var indicesOut = new Uint16Array(numIndices);
+  var highest = 0;
+  for (var i = 0; i < numIndices; i++) {
+    var code = str.charCodeAt(i + inputOffset);
+    indicesOut[i] = highest - code;
     if (code == 0) {
-      index_high_water_mark++;
+      highest++;
     }
   }
-  return [attribs_out, indices_out];
+
+  return [attribsOut, indicesOut];
 }
 
 function meshBufferData(gl, mesh) {

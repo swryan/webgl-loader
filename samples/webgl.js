@@ -49,20 +49,22 @@ function Program(gl, shaders) {
     throw this.info();
   }
   
-  var num_attribs = gl.getProgramParameter(this.handle_, gl.ACTIVE_ATTRIBUTES);
+  var numActiveAttribs = gl.getProgramParameter(this.handle_,
+                                                gl.ACTIVE_ATTRIBUTES);
   this.attribs = [];
   this.set_attrib = {};
-  for (var i = 0; i < num_attribs; i++) {
+  for (var i = 0; i < numActiveAttribs; i++) {
     var active_attrib = gl.getActiveAttrib(this.handle_, i);
     var loc = gl.getAttribLocation(this.handle_, active_attrib.name);
     this.attribs[loc] = active_attrib;
     this.set_attrib[active_attrib.name] = loc;
   }
   
-  var num_uniforms = gl.getProgramParameter(this.handle_, gl.ACTIVE_UNIFORMS);
+  var numActiveUniforms = gl.getProgramParameter(this.handle_,
+                                                 gl.ACTIVE_UNIFORMS);
   this.uniforms = [];
   this.set_uniform = {};
-  for (var j = 0; j < num_uniforms; j++) {
+  for (var j = 0; j < numActiveUniforms; j++) {
     var active_uniform = gl.getActiveUniform(this.handle_, j);
     this.uniforms[j] = active_uniform;
     this.set_uniform[active_uniform.name] = gl.getUniformLocation(
@@ -76,6 +78,24 @@ Program.prototype.info = function() {
 
 Program.prototype.use = function() {
   this.gl_.useProgram(this.handle_);
+};
+
+Program.prototype.enableVertexAttribArrays = function() {
+  var numAttribs = this.attribs.length;
+  for (var i = 0; i < numAttribs; ++i) {
+    this.gl_.enableVertexAttribArray(i);
+  }
+};
+
+Program.prototype.vertexAttribPointers = function(attribArrays) {
+  var numAttribs = this.attribs.length;
+  for (var i = 0; i < numAttribs; ++i) {
+    var params = attribArrays[this.attribs[i].name];
+    // TODO: 4x assumes gl.FLOAT
+    this.gl_.vertexAttribPointer(i, params.size, params.type || this.gl_.FLOAT,
+                                 !!params.normalized, 4*params.stride,
+                                 4*params.offset);
+  }
 };
 
 function textureFromImage(gl, image) {

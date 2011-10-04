@@ -29,12 +29,6 @@ function Renderer(canvas) {
   window.addEventListener('resize', onWindowResize_);
 
   // WebGL
-  var simpleVsrc = id('SIMPLE_VERTEX_SHADER').text;
-  var simpleFsrc = id('SIMPLE_FRAGMENT_SHADER').text;
-  this.program_ = new Program(gl, [vertexShader(gl, simpleVsrc),
-                                   fragmentShader(gl, simpleFsrc)]);
-  this.program_.use();
-
   gl.clearColor(0.4, 0.4, 0.4, 1.0);
   gl.enable(gl.CULL_FACE);
   gl.enable(gl.DEPTH_TEST);
