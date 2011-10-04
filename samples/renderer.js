@@ -4,7 +4,7 @@ function Renderer(canvas) {
   var self = this;
   this.canvas_ = canvas;
 
-  var gl = CreateContextFromCanvas(canvas);
+  var gl = createContextFromCanvas(canvas);
   this.gl_ = gl;
 
   // Camera.
@@ -18,22 +18,21 @@ function Renderer(canvas) {
   this.numIndices_ = 0;
 
   // Resize.
-  function OnWindowResize_() {
+  function onWindowResize_() {
     var canvas = self.canvas_;
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
     gl.viewport(0, 0, canvas.width, canvas.height);
-    self.PostRedisplay();
+    self.postRedisplay();
   }
-  OnWindowResize_();
-  window.addEventListener('resize', OnWindowResize_);
+  onWindowResize_();
+  window.addEventListener('resize', onWindowResize_);
 
   // WebGL
-  var simpleVsrc = ID('SIMPLE_VERTEX_SHADER').text;
-  var simpleFsrc = ID('SIMPLE_FRAGMENT_SHADER').text;
-  this.program_ = new Program(
-    gl, [new Shader(gl, simpleVsrc, gl.VERTEX_SHADER),
-	 new Shader(gl, simpleFsrc, gl.FRAGMENT_SHADER)]);
+  var simpleVsrc = id('SIMPLE_VERTEX_SHADER').text;
+  var simpleFsrc = id('SIMPLE_FRAGMENT_SHADER').text;
+  this.program_ = new Program(gl, [vertexShader(gl, simpleVsrc),
+                                   fragmentShader(gl, simpleFsrc)]);
   this.program_.use();
 
   gl.clearColor(0.4, 0.4, 0.4, 1.0);
@@ -41,9 +40,9 @@ function Renderer(canvas) {
   gl.enable(gl.DEPTH_TEST);
 }
 
-Renderer.prototype.PostRedisplay = function() {
+Renderer.prototype.postRedisplay = function() {
   var self = this;
-  function Draw_() {
+  function draw_() {
     var gl = self.gl_;
     var canvas = self.canvas_;
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
@@ -54,9 +53,9 @@ Renderer.prototype.PostRedisplay = function() {
     mat4.multiply(self.view_, self.model_, self.mvp_);
     mat4.multiply(self.proj_, self.mvp_, self.mvp_);
     gl.uniformMatrix4fv(self.program_.set_uniform.u_mvp, false, self.mvp_);
-    gl.uniformMatrix3fv(self.program_.set_uniform.u_model, false,
+    gl.uniformMatrix3fv(self.program_.set_uniform.u_model, false, 
                         mat4.toMat3(self.model_));
     gl.drawElements(gl.TRIANGLES, self.numIndices_, gl.UNSIGNED_SHORT, 0);
   }
-  window.requestAnimFrame(Draw_, this.canvas_);
+  window.requestAnimFrame(draw_, this.canvas_);
 };

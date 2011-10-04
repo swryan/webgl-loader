@@ -58,7 +58,13 @@ void main(void) {
 <script type="text/javascript" src="samples.js"></script>
 
 <script type="text/javascript">
-GetHttpRequest('hand_00.utf8', OnLoad);
+getHttpRequest('hand_00.utf8', onLoad);
+
+textureFromUrl(renderer.gl_, 'checker.png', function(gl, texture) {
+  gl.activeTexture(gl.TEXTURE0);
+  gl.uniform1i(renderer.program_.set_uniform.u_texture, 0);
+  renderer.postRedisplay();
+});
 </script>
 
 </body></html>

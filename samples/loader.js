@@ -1,6 +1,6 @@
 'use strict';
 
-function DecompressMesh(str) {
+function decompressMesh(str) {
   var num_verts = str.charCodeAt(0);
   if (num_verts >= 0xE000) num_verts -= 0x0800;
   num_verts++;
@@ -50,7 +50,7 @@ function DecompressMesh(str) {
   return [attribs_out, indices_out];
 }
 
-function MeshBufferData(gl, mesh) {
+function meshBufferData(gl, mesh) {
   var attribs = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, attribs);
   gl.bufferData(gl.ARRAY_BUFFER, mesh[0], gl.STATIC_DRAW);

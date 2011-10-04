@@ -2,38 +2,38 @@
 
 // TODO: namespace.
 
-function Never() {
+function never() {
   return false;
 }
 
-function Clamp(val, minVal, maxVal) {
+function clamp(val, minVal, maxVal) {
   return (val < minVal) ? minVal : ((val > maxVal) ? maxVal : val);
 }
 
 // DOM.
 
-function ID(id) {
+function id(id) {
   return document.getElementById(id);
 }
 
-function PreventDefaultAction(evt) {
+function preventDefaultAction(evt) {
   evt.preventDefault();
 }
 
-function PreventSelection(dom) {
+function preventSelection(dom) {
   // TODO: Use PreventDefaultAction?
-  dom.onselectstart = Never;
-  dom.onmousedown = Never;
+  dom.onselectstart = never;
+  dom.onmousedown = never;
 }
 
-function AddListeners(dom, listeners) {
+function addListeners(dom, listeners) {
   // TODO: handle event capture, object binding.
   for (var key in listeners) {
     dom.addEventListener(key, listeners[key]);
   }
 }
 
-function RemoveListeners(dom, listeners) {
+function removeListeners(dom, listeners) {
   // TODO: handle event capture, object binding.
   for (var key in listeners) {
     dom.removeEventListener(key, listeners[key]);
@@ -41,7 +41,7 @@ function RemoveListeners(dom, listeners) {
 }
 
 // drag(dx, dy, evt)
-function AddDragHandler(dom, drag) {
+function addDragHandler(dom, drag) {
   var prevX_, prevY_;
 
   var LISTENERS = {
@@ -51,22 +51,22 @@ function AddDragHandler(dom, drag) {
       prevY_ = evt.screenY;
     },
     mouseup: function() {
-      RemoveListeners(document, LISTENERS);
+      removeListeners(document, LISTENERS);
     }
   };
 
   dom.addEventListener('mousedown', function(evt) {
     prevX_ = evt.screenX;
     prevY_ = evt.screenY;
-    AddListeners(document, LISTENERS);
+    addListeners(document, LISTENERS);
   });
 }
 
 // wheel(dx, dy, evt)
-function AddWheelHandler(dom, wheel) {
-  if (dom.onmousewheel !== undefined) {
+function addWheelHandler(dom, wheel) {
+  if (typeof dom.onmousewheel !== 'undefined') {
     dom.addEventListener('mousewheel', function(evt) {
-      if (evt.wheelDeltaX !== undefined) {
+      if (typeof evt.wheelDeltaX !== 'undefined') {
         wheel(evt.wheelDeltaX, evt.wheelDeltaY, evt);
       } else {
         wheel(0, evt.wheelDelta, evt);
@@ -89,13 +89,14 @@ function AddWheelHandler(dom, wheel) {
 window.requestAnimFrame = window.requestAnimationFrame ||
   window.webkitRequestAnimationFrame ||
   window.mozRequestAnimationFrame ||
-  function(cb, dom) {
+  window.oRequestAnimationFrame || 
+  window.msRequestAnimationFrame || 
+  function(callback, dom_unused) {
     window.setTimeout(callback, 16);  // 16ms ~ 60Hz
   };
 
 // XMLHttpRequest stuff.
-function GetHttpRequest(url, onload, opt_onprogress) {
-  // TODO: onprogress
+function getHttpRequest(url, onload) {
   var req = new XMLHttpRequest();
   req.onload = function() { onload(req); };
   req.open('GET', url, true);
