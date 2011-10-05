@@ -6,29 +6,29 @@ preventSelection(canvas);
 var renderer = new Renderer(canvas);
 var gl = renderer.gl_;
 
-var DEFAULT_ATTRIB_ARRAYS = {
-  a_position: {
+var DEFAULT_ATTRIB_ARRAYS = [
+  { name: "a_position",
     size: 3,
     stride: 8,
     offset: 0,
     decodeOffset: -4095,
     decodeScale: 1/8191
-  },
-  a_texcoord: {
+  }, 
+  { name: "a_texcoord",
     size: 2,
     stride: 8,
     offset: 3,
     decodeOffset: 0,
     decodeScale: 1/1023
   },
-  a_normal: {
+  { name: "a_normal",
     size: 3,
     stride: 8,
     offset: 5,
     decodeOffset: -511,
     decodeScale: 1/1023
   }
-};
+];
 
 var simpleVsrc = id('SIMPLE_VERTEX_SHADER').text;
 var simpleFsrc = id('SIMPLE_FRAGMENT_SHADER').text;

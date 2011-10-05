@@ -21,15 +21,16 @@ function decompressSimpleMesh(str, attribArrays) {
   numVerts++;
 
   // Extract conversion parmaters from attribArrays.
-  var stride = attribArrays.a_position.stride;  // TODO: generalize.
+  var stride = attribArrays[0].stride;  // TODO: generalize.
   var decodeOffsets = new Float32Array(stride);
   var decodeScales = new Float32Array(stride);
-  for (var key in attribArrays) {
-    var attribArray = attribArrays[key];
+  var numArrays = attribArrays.length;
+  for (var i = 0; i < numArrays; i++) {
+    var attribArray = attribArrays[i];
     var end = attribArray.offset + attribArray.size;
-    for (var i = attribArray.offset; i < end; i++) {
-      decodeOffsets[i] = attribArray.decodeOffset;
-      decodeScales[i] = attribArray.decodeScale;
+    for (var j = attribArray.offset; j < end; j++) {
+      decodeOffsets[j] = attribArray.decodeOffset;
+      decodeScales[j] = attribArray.decodeScale;
     }
   }
 

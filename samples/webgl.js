@@ -80,21 +80,26 @@ Program.prototype.use = function() {
   this.gl_.useProgram(this.handle_);
 };
 
-Program.prototype.enableVertexAttribArrays = function() {
-  var numAttribs = this.attribs.length;
+Program.prototype.enableVertexAttribArrays = function(attribArrays) {
+  var numAttribs = attribArrays.length;
   for (var i = 0; i < numAttribs; ++i) {
-    this.gl_.enableVertexAttribArray(i);
+    var params = attribArrays[i];
+    var loc = this.set_attrib[params.name];
+    if (loc !== undefined) {
+      this.gl_.enableVertexAttribArray(loc);
+    }
   }
 };
 
 Program.prototype.vertexAttribPointers = function(attribArrays) {
-  var numAttribs = this.attribs.length;
+  var numAttribs = attribArrays.length;
   for (var i = 0; i < numAttribs; ++i) {
-    var params = attribArrays[this.attribs[i].name];
-    // TODO: 4x assumes gl.FLOAT
-    this.gl_.vertexAttribPointer(i, params.size, params.type || this.gl_.FLOAT,
-                                 !!params.normalized, 4*params.stride,
-                                 4*params.offset);
+    var params = attribArrays[i];
+    var loc = this.set_attrib[params.name];
+    var typeBytes = 4;  // TODO: 4 assumes gl.FLOAT, use params.type
+    this.gl_.vertexAttribPointer(loc, params.size, this.gl_.FLOAT,
+                                 !!params.normalized, typeBytes*params.stride,
+                                 typeBytes*params.offset);
   }
 };
 

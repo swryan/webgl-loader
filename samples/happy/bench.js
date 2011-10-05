@@ -26,29 +26,32 @@ var URLS = [ 'happy.A.utf8',
              'happy.J.utf8',
              'happy.K.utf8' ];
 
-var DEFAULT_ATTRIB_ARRAYS = {
-  a_position: {
+var DEFAULT_ATTRIB_ARRAYS = [
+  {
+    name: "a_position",
     size: 3,
     stride: 8,
     offset: 0,
     decodeOffset: -4095,
     decodeScale: 1/8191
   },
-  a_texcoord: {
+  {
+    name: "a_texcoord",
     size: 2,
     stride: 8,
     offset: 3,
     decodeOffset: 0,
     decodeScale: 1/1023
   },
-  a_normal: {
+  {
+    name: "a_normal",
     size: 3,
     stride: 8,
     offset: 5,
     decodeOffset: -511,
     decodeScale: 1/1023
   }
-};
+];
 
 function decompressInner_(str, inputStart, inputEnd,
                           output, outputStart, stride,
@@ -68,15 +71,16 @@ function decompressSimpleMesh(str, attribArrays) {
   numVerts++;
 
   // Extract conversion parmaters from attribArrays.
-  var stride = attribArrays.a_position.stride;  // TODO: generalize.
+  var stride = attribArrays[0].stride;
   var decodeOffsets = new Float32Array(stride);
   var decodeScales = new Float32Array(stride);
-  for (var key in attribArrays) {
-    var attribArray = attribArrays[key];
+  var numArrays = attribArrays.length;
+  for (var i = 0; i < numArrays; i++) {
+    var attribArray = attribArrays[i];
     var end = attribArray.offset + attribArray.size;
-    for (var i = attribArray.offset; i < end; i++) {
-      decodeOffsets[i] = attribArray.decodeOffset;
-      decodeScales[i] = attribArray.decodeScale;
+    for (var j = attribArray.offset; j < end; j++) {
+      decodeOffsets[j] = attribArray.decodeOffset;
+      decodeScales[j] = attribArray.decodeScale;
     }
   }
 

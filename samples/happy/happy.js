@@ -14,22 +14,23 @@ function UpdateTotal(ms) {
       " ms, Total time: " + ms + " ms";
 }
 
-var BUDDHA_ATTRIB_ARRAYS = {
-  a_position: {
+var BUDDHA_ATTRIB_ARRAYS = [
+  { name: "a_position",
     size: 3,
     stride: 8,
     offset: 0,
     decodeOffset: -4095,
     decodeScale: 1/8191
   },
-  a_normal: {
+  {
+    name: "a_normal",
     size: 3,
     stride: 8,
     offset: 5,
     decodeOffset: -511,
     decodeScale: 1/1023
   }
-};
+];
 
 var urls = [ 'happy.A.utf8',
              'happy.B.utf8',
@@ -74,11 +75,10 @@ load : function(gl)
   gl.enable(gl.DEPTH_TEST);
   gl.enable(gl.CULL_FACE);
 
-  var simpleVsrc = sglNodeText("SIMPLE_VERTEX_SHADER");
-  var simpleFsrc = sglNodeText("SIMPLE_FRAGMENT_SHADER");
-  var program = new Program(gl, [
-      new Shader(gl, simpleVsrc, gl.VERTEX_SHADER),
-      new Shader(gl, simpleFsrc, gl.FRAGMENT_SHADER)]);
+  var simpleVsrc = id("SIMPLE_VERTEX_SHADER").text;
+  var simpleFsrc = id("SIMPLE_FRAGMENT_SHADER").text;
+  var program = new Program(gl, [vertexShader(gl, simpleVsrc),
+                                 fragmentShader(gl, simpleFsrc)]);
   this.program = program;
   program.use();
   program.enableVertexAttribArrays(BUDDHA_ATTRIB_ARRAYS);
