@@ -6,30 +6,6 @@ preventSelection(canvas);
 var renderer = new Renderer(canvas);
 var gl = renderer.gl_;
 
-var DEFAULT_ATTRIB_ARRAYS = [
-  { name: "a_position",
-    size: 3,
-    stride: 8,
-    offset: 0,
-    decodeOffset: -4095,
-    decodeScale: 1/8191
-  }, 
-  { name: "a_texcoord",
-    size: 2,
-    stride: 8,
-    offset: 3,
-    decodeOffset: 0,
-    decodeScale: 1/1023
-  },
-  { name: "a_normal",
-    size: 3,
-    stride: 8,
-    offset: 5,
-    decodeOffset: -511,
-    decodeScale: 1/1023
-  }
-];
-
 var simpleVsrc = id('SIMPLE_VERTEX_SHADER').text;
 var simpleFsrc = id('SIMPLE_FRAGMENT_SHADER').text;
 renderer.program_ = new Program(gl, [vertexShader(gl, simpleVsrc),
@@ -75,15 +51,8 @@ addWheelHandler(window, function(dx, dy, evt) {
   return false;
 });
 
-function onLoad(xhr) {
-  if (xhr.status === 200 || xhr.status === 0) {
-    var mesh = decompressSimpleMesh(xhr.responseText, 
-                                    DEFAULT_ATTRIB_ARRAYS);
-    renderer.numIndices_ = mesh[1].length;
-    meshBufferData(gl, mesh);
-
-    renderer.program_.vertexAttribPointers(DEFAULT_ATTRIB_ARRAYS);
-
-    renderer.postRedisplay();
-  }
+function onLoad(attribArray, indexArray) {
+  renderer.meshes_.push(
+    new Mesh(gl, attribArray, indexArray, DEFAULT_ATTRIB_ARRAYS));
+  renderer.postRedisplay();
 }

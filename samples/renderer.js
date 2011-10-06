@@ -14,8 +14,8 @@ function Renderer(canvas) {
   this.proj_ = mat4.create();
   this.mvp_ = mat4.create();
 
-  // Mesh.
-  this.numIndices_ = 0;
+  // Meshes.
+  this.meshes_ = [];
 
   // Resize.
   function onWindowResize_() {
@@ -49,7 +49,10 @@ Renderer.prototype.postRedisplay = function() {
     gl.uniformMatrix4fv(self.program_.set_uniform.u_mvp, false, self.mvp_);
     gl.uniformMatrix3fv(self.program_.set_uniform.u_model, false, 
                         mat4.toMat3(self.model_));
-    gl.drawElements(gl.TRIANGLES, self.numIndices_, gl.UNSIGNED_SHORT, 0);
+    var numMeshes = self.meshes_.length;
+    for (var i = 0; i < numMeshes; i++) {
+      self.meshes_[i].bindAndDraw(self.program_);
+    }
   }
   window.requestAnimFrame(draw_, this.canvas_);
 };

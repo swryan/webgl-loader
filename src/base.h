@@ -50,6 +50,20 @@ static inline int strtoint(const char* str, const char** endptr) {
   return static_cast<int>(strtol(str, const_cast<char**>(endptr), 10));
 }
 
+static inline const char* stripLeadingWhitespace(const char* str) {
+  while (isspace(*str)) {
+    ++str;
+  }
+  return str;
+}
+
+static inline void terminateAtNewline(const char* str) {
+  char* newline = strpbrk(str, "\r\n");
+  if (newline) {
+    *newline = '\0';
+  }
+}
+
 // TODO: Visual Studio calls this someting different.
 #ifdef putc_unlocked
 # define PutChar putc_unlocked

@@ -123,3 +123,34 @@ function textureFromUrl(gl, url, opt_callback) {
   };
   image.src = url;
 }
+
+function meshBufferData(gl, attribArray, indexArray) {
+  var attribBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, attribBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, attribArray, gl.STATIC_DRAW);
+
+  var indexBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indexArray, gl.STATIC_DRAW);
+
+  return [attribBuffer, indexBuffer];
+}
+
+function Mesh(gl, attribArray, indexArray, attribArrays) {
+  this.gl_ = gl;
+  this.attribArrays_ = attribArrays;  // TODO: better name!
+  this.numIndices_ = indexArray.length;
+
+  var buffers = meshBufferData(gl, attribArray, indexArray);
+  this.vbo_ = buffers[0];
+  this.ibo_ = buffers[1];
+}
+
+Mesh.prototype.bindAndDraw = function(program) {
+  var gl = this.gl_;
+  gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo_);
+  program.vertexAttribPointers(this.attribArrays_);
+
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo_);
+  gl.drawElements(gl.TRIANGLES, this.numIndices_, gl.UNSIGNED_SHORT, 0);
+};

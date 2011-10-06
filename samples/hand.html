@@ -50,6 +50,7 @@ void main(void) {
 </script>
 
 <script type="text/javascript" src="glMatrix-0.9.5.min.js"></script>
+<script type="text/javascript" src="webgl-debug.js"></script>
 
 <script type="text/javascript" src="base.js"></script>
 <script type="text/javascript" src="webgl.js"></script>
@@ -58,7 +59,19 @@ void main(void) {
 <script type="text/javascript" src="samples.js"></script>
 
 <script type="text/javascript">
-getHttpRequest('hand_00.utf8', onLoad);
+
+downloadMeshes({
+"hand.utf8": [
+  { material: "",
+    attribRange: [0, 688],
+    indexRange: [5504, 1280],
+  },
+  { material: "hand.ppm",
+    attribRange: [9344, 9052],
+    indexRange: [81760, 15855],
+  },
+],
+}, DEFAULT_ATTRIB_ARRAYS, onLoad);
 
 textureFromUrl(renderer.gl_, 'checker.png', function(gl, texture) {
   gl.activeTexture(gl.TEXTURE0);

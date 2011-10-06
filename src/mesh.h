@@ -88,6 +88,10 @@ class ShortFloatList {
     return size_;
   }
 
+  float operator[](size_t idx) const {
+    return a_[idx];
+  }
+
   void AppendTo(AttribList* attribs) const {
     AppendNTo(attribs, size_);
   }
@@ -113,10 +117,17 @@ class IndexFlattener {
 
   int count() const { return count_; }
 
+  void reserve(size_t size) {
+    table_.reserve(size);
+  }
+  
   // Returns a pair of: < flattened index, newly inserted >.
   std::pair<int, bool> GetFlattenedIndex(int position_index,
                                          int texcoord_index,
                                          int normal_index) {
+    if (position_index >= static_cast<int>(table_.size())) {
+      table_.resize(position_index + 1);
+    }
     // First, optimistically look up position_index in the table.
     IndexType& index = table_[position_index];
     if (index.position_or_flat == kIndexUnknown) {
@@ -218,83 +229,180 @@ class IndexFlattener {
   MapType map_;
 };
 
-// TODO: consider splitting this into a low-level parser and a high-level
-// object.
-class WavefrontObjFile {
+
+static inline size_t positionDim() { return 3; }
+static inline size_t texcoordDim() { return 2; }
+static inline size_t normalDim() { return 3; }
+  
+class DrawBatch {
  public:
-  struct Group {
-    std::string name;
-    size_t start, end;
-  };
-
-  typedef std::vector<Group> GroupList;
-
-  explicit WavefrontObjFile(FILE* fp) {
-    ParseFile(fp);
-  };
-
-  const GroupList& groups() const { return groups_; }
-
-  // Populate draw_meshes.
-  void CreateDrawMeshes(std::vector<DrawMesh>* draw_meshes) {
-    draw_meshes->push_back(DrawMesh());
-    DrawMesh& draw_mesh = draw_meshes->back();
-    IndexFlattener flattener(positions_.size() / positionDim());
-    for (size_t i = 0; i < faces_.size(); i += 3) {
+  DrawBatch()
+      : flattener_(0) {
+  }
+  void Init(AttribList* positions, AttribList* texcoords, AttribList* normals) {
+    positions_ = positions;
+    texcoords_ = texcoords;
+    normals_ = normals;
+    flattener_.reserve(1024);
+  }
+  
+  void AddTriangle(int* indices) {
+    for (size_t i = 0; i < 9; i += 3) {
       // .OBJ files use 1-based indexing.
-      const int position_index = faces_[i + 0] - 1;
-      const int texcoord_index = faces_[i + 1] - 1;
-      const int normal_index = faces_[i + 2] - 1;
-      const std::pair<int, bool> flattened = flattener.GetFlattenedIndex(
+      const int position_index = indices[i + 0] - 1;
+      const int texcoord_index = indices[i + 1] - 1;
+      const int normal_index = indices[i + 2] - 1;
+      const std::pair<int, bool> flattened = flattener_.GetFlattenedIndex(
           position_index, texcoord_index, normal_index);
-      draw_mesh.indices.push_back(flattened.first);
+      draw_mesh_.indices.push_back(flattened.first);
       if (flattened.second) {
         for (size_t i = 0; i < positionDim(); ++i) {
-          draw_mesh.attribs.push_back(
-              positions_[positionDim() * position_index + i]);
+          draw_mesh_.attribs.push_back(
+              positions_->at(positionDim() * position_index + i));
         }
         if (texcoord_index == -1) {
           for (size_t i = 0; i < texcoordDim(); ++i) {
-            draw_mesh.attribs.push_back(0);
+            draw_mesh_.attribs.push_back(0);
           }
         } else {
           for (size_t i = 0; i < texcoordDim(); ++i) {
-            draw_mesh.attribs.push_back(
-                texcoords_[texcoordDim() * texcoord_index + i]);
+            draw_mesh_.attribs.push_back(
+                texcoords_->at(texcoordDim() * texcoord_index + i));
           }
         }
         if (normal_index == -1) {
           for (size_t i = 0; i < normalDim(); ++i) {
-            draw_mesh.attribs.push_back(0);
+            draw_mesh_.attribs.push_back(0);
           }
         } else {
           for (size_t i = 0; i < normalDim(); ++i) {
-            draw_mesh.attribs.push_back(
-                normals_[normalDim() * normal_index + i]);
+            draw_mesh_.attribs.push_back(
+                normals_->at(normalDim() * normal_index + i));
           }
         }
       }
     }
   }
 
-  void DumpDebug() const {
-    printf("positions size: %zu\ntexcoords size: %zu\nnormals size: %zu"
-           "\nfaces size: %zu\n", positions_.size(), texcoords_.size(),
-           normals_.size(), faces_.size());
+  const DrawMesh& draw_mesh() const {
+    return draw_mesh_;
   }
  private:
-  WavefrontObjFile() { }
-  
+  AttribList* positions_, *texcoords_, *normals_;
+  DrawMesh draw_mesh_;
+  IndexFlattener flattener_;
+};
+
+struct Material {
+  std::string name;
+  float Kd[3];
+  std::string map_Kd;
+};
+
+typedef std::vector<Material> MaterialList;
+
+class WavefrontMtlFile {
+ public:  
+  explicit WavefrontMtlFile(FILE* fp) {
+    ParseFile(fp);
+  }
+
+  const MaterialList& materials() const {
+    return materials_;
+  }
+
+ private:
+  // TODO: factor this parsing stuff out.
   void ParseFile(FILE* fp) {
     // TODO: don't use a fixed-size buffer.
     const size_t kLineBufferSize = 256;
     char buffer[kLineBufferSize];
     unsigned int line_num = 1;
     while (fgets(buffer, kLineBufferSize, fp) != NULL) {
-      const char* stripped = buffer;
-      while (isspace(*stripped)) {
-        ++stripped;
+      const char* stripped = stripLeadingWhitespace(buffer);
+      terminateAtNewline(stripped);
+      ParseLine(stripped, line_num++);
+    }
+  }
+
+  void ParseLine(const char* line, unsigned int line_num) {
+    switch (*line) {
+      case 'K':
+        ParseColor(line + 1, line_num);
+        break;
+      case 'm':
+        if (0 == strncmp(line + 1, "ap_Kd", 5)) {
+          ParseMapKd(line + 6, line_num);
+        }
+        break;
+      case 'n':
+        if (0 == strncmp(line + 1, "ewmtl", 5)) {
+          ParseNewmtl(line + 6, line_num);
+        }
+      default:
+        break;
+    }
+  }
+
+  void ParseColor(const char* line, unsigned int line_num) {
+    switch (*line) {
+      case 'd': {
+        ShortFloatList floats;
+        floats.ParseLine(line + 1);
+        float* Kd = current_->Kd;
+        Kd[0] = floats[0];
+        Kd[1] = floats[1];
+        Kd[2] = floats[2];
+        break;
       }
+      default:
+        break;
+    }
+  }
+
+  void ParseMapKd(const char* line, unsigned int line_num) {
+    current_->map_Kd = stripLeadingWhitespace(line);
+  }
+
+  void ParseNewmtl(const char* line, unsigned int line_num) {
+    materials_.push_back(Material());
+    current_ = &materials_.back();
+    current_->name = stripLeadingWhitespace(line);
+  }
+
+  Material* current_;
+  MaterialList materials_;
+};
+
+typedef std::map<std::string, DrawBatch> TextureBatches;
+
+// TODO: consider splitting this into a low-level parser and a high-level
+// object.
+class WavefrontObjFile {
+ public:
+  explicit WavefrontObjFile(FILE* fp) {
+    current_ = &texture_batches_[""];
+    current_->Init(&positions_, &texcoords_, &normals_);
+    ParseFile(fp);
+  }
+
+  const TextureBatches& texture_batches() const {
+    return texture_batches_;
+  }
+
+  void DumpDebug() const {
+    printf("positions size: %zu\ntexcoords size: %zu\nnormals size: %zu\n",
+           positions_.size(), texcoords_.size(), normals_.size());
+  }
+ private:  
+  void ParseFile(FILE* fp) {
+    // TODO: don't use a fixed-size buffer.
+    const size_t kLineBufferSize = 256;
+    char buffer[kLineBufferSize] = { 0 };
+    unsigned int line_num = 1;
+    while (fgets(buffer, kLineBufferSize, fp) != NULL) {
+      const char* stripped = stripLeadingWhitespace(buffer);
+      terminateAtNewline(stripped);
       ParseLine(stripped, line_num++);
     }
   }
@@ -320,14 +428,23 @@ class WavefrontObjFile {
         WarnLine("line unspported", line_num);
         break;
       case 'u':
-        ParseUsemtl(line + 6, line_num);
+        if (0 == strncmp(line + 1, "semtl", 5)) {
+          ParseUsemtl(line + 6, line_num);
+        } else {
+          goto unknown;
+        }
         break;
       case 'm':
-        ParseMtllib(line + 6, line_num);
+        if (0 == strncmp(line + 1, "tllib", 5)) {
+          ParseMtllib(line + 6, line_num);
+        } else {
+          goto unknown;
+        }
         break;
       case 's':
         ParseSmoothingGroup(line + 1, line_num);
         break;
+      unknown:
       default:
         WarnLine("unknown keyword", line_num);
         break;
@@ -397,7 +514,7 @@ class WavefrontObjFile {
     // triangle to the fan.
     while ((line = ParseIndices(line, line_num,
                                 indices + 6, indices + 7, indices + 8))) {
-      faces_.insert(faces_.end(), indices, indices + 9);
+      current_->AddTriangle(indices);
       // The most recent vertex is reused for the next triangle.
       indices[3] = indices[6];
       indices[4] = indices[7];
@@ -448,19 +565,38 @@ class WavefrontObjFile {
   }
 
   void ParseMtllib(const char* line, unsigned int line_num) {
-    static bool once = true;
-    if (once) {
-      WarnLine("mtllib (?) unsupported", line_num);
-      once = false;
+    FILE* fp = fopen(stripLeadingWhitespace(line), "r");
+    if (!fp) {
+      WarnLine("mtllib not found", line_num);
+      return;
+    }
+    WavefrontMtlFile mtlfile(fp);
+    fclose(fp);
+    const MaterialList& materials = mtlfile.materials();
+    for (size_t i = 0; i < materials.size(); ++i) {
+      materials_.push_back(materials[i]);
+      const std::string& texture = materials[i].map_Kd;
+      material_textures_[materials[i].name] = texture;
+      if (!texture.empty()) {
+        DrawBatch& draw_batch = texture_batches_[texture];
+        draw_batch.Init(&positions_, &texcoords_, &normals_);
+      }
     }
   }
 
   void ParseUsemtl(const char* line, unsigned int line_num) {
-    static bool once = true;
-    if (once) {
-      WarnLine("usemtl (?) unsupported", line_num);
-      once = false;
+    const std::string usemtl = stripLeadingWhitespace(line);
+    MaterialTextures::const_iterator texture_iter =
+        material_textures_.find(usemtl);
+    const std::string& texture = texture_iter != material_textures_.end() ?
+        texture_iter->second : "";
+    
+    TextureBatches::iterator iter =
+        texture_batches_.find(texture);
+    if (iter == texture_batches_.end()) {
+      ErrorLine("texture not found", line_num);
     }
+    current_ = &iter->second;
   }
 
   void WarnLine(const char* why, unsigned int line_num) {
@@ -472,68 +608,43 @@ class WavefrontObjFile {
     exit(-1);
   }
 
-  static size_t positionDim() { return 3; }
-  static size_t texcoordDim() { return 2; }
-  static size_t normalDim() { return 3; }
-  
   AttribList positions_;
   AttribList texcoords_;
   AttribList normals_;
-  // Indices are 1-indexed, and per-attrib.
-  IndexList faces_;
-  GroupList groups_;
+  MaterialList materials_;
+  typedef std::map<std::string, std::string> MaterialTextures;
+  MaterialTextures material_textures_;
+
+  // Currently, batch by texture (i.e. map_Kd).
+  TextureBatches texture_batches_;
+  DrawBatch no_texture_;
+  DrawBatch* current_;
 };
-
-// Axis-aligned bounding box
-struct AABB {
-  float mins[3];
-  float maxes[3];
-};
-
-void DumpJsonFromAABB(const AABB& aabb) {
-  printf("var aabb = { mins: [%f, %f, %f], maxes: [%f, %f, %f] };\n",
-         aabb.mins[0], aabb.mins[1], aabb.mins[2],
-         aabb.maxes[0], aabb.maxes[1], aabb.maxes[2]);
-}
-
-float UniformScaleFromAABB(const AABB& aabb) {
-  const float x = aabb.maxes[0] - aabb.mins[0];
-  const float y = aabb.maxes[1] - aabb.mins[1];
-  const float z = aabb.maxes[2] - aabb.mins[2];
-  return (x > y)
-      ? ((x > z) ? x : z)
-      : ((y > z) ? y : z);
-}
-
-void AABBToCenter(const AABB& aabb, float center[3]) {
-  for (size_t i = 0; i < 3; ++i) {
-    center[i] = 0.5*(aabb.mins[i] + aabb.maxes[i]);
-  }
-}
-
-AABB AABBFromAttribs(const AttribList& interleaved_attribs) {
-  AABB aabb;
-  for (size_t i = 0; i < 3; ++i) {
-    aabb.mins[i] = FLT_MAX;
-    aabb.maxes[i] = -FLT_MAX;
-  }
-  for (size_t i = 0; i < interleaved_attribs.size(); i += 8) {
-    for (size_t j = 0; j < 3; ++j) {
-      const float attrib = interleaved_attribs[i + j];
-      if (aabb.mins[j] > attrib) {
-        aabb.mins[j] = attrib;
-      }
-      if (aabb.maxes[j] < attrib) {
-        aabb.maxes[j] = attrib;
-      }
-    }
-  }
-  return aabb;
-}
 
 struct Bounds {
   float mins[8];
   float maxes[8];
+
+  void Clear() {
+    for (size_t i = 0; i < 8; ++i) {
+      mins[i] = FLT_MAX;
+      maxes[i] = -FLT_MAX;
+    }
+  }
+
+  void Enclose(const AttribList& attribs) {
+    for (size_t i = 0; i < attribs.size(); i += 8) {
+      for (size_t j = 0; j < 8; ++j) {
+        const float attrib = attribs[i + j];
+        if (mins[j] > attrib) {
+          mins[j] = attrib;
+        }
+        if (maxes[j] < attrib) {
+          maxes[j] = attrib;
+        }
+      }
+    }
+  }
 };
 
 float UniformScaleFromBounds(const Bounds& bounds) {
@@ -543,26 +654,6 @@ float UniformScaleFromBounds(const Bounds& bounds) {
   return (x > y)
       ? ((x > z) ? x : z)
       : ((y > z) ? y : z);
-}
-
-Bounds BoundsFromAttribs(const AttribList& interleaved_attribs) {
-  Bounds bounds;
-  for (size_t i = 0; i < 8; ++i) {
-    bounds.mins[i] = FLT_MAX;
-    bounds.maxes[i] = -FLT_MAX;
-  }
-  for (size_t i = 0; i < interleaved_attribs.size(); i += 8) {
-    for (size_t j = 0; j < 8; ++j) {
-      const float attrib = interleaved_attribs[i + j];
-      if (bounds.mins[j] > attrib) {
-        bounds.mins[j] = attrib;
-      }
-      if (bounds.maxes[j] < attrib) {
-        bounds.maxes[j] = attrib;
-      }
-    }
-  }
-  return bounds;
 }
 
 uint16 Quantize(float f, float offset, float range, int bits) {
@@ -617,19 +708,16 @@ struct BoundsParams {
   int bits[8];
 };
 
-// TODO: make "bounds_params" an in/out parameter.
 void AttribsToQuantizedAttribs(const AttribList& interleaved_attribs,
-                               BoundsParams* bounds_params,
+                               const BoundsParams& bounds_params,
                                QuantizedAttribList* quantized_attribs) {
-  const Bounds bounds = BoundsFromAttribs(interleaved_attribs);
   quantized_attribs->resize(interleaved_attribs.size());
-  *bounds_params = BoundsParams::FromBounds(bounds);
   for (size_t i = 0; i < interleaved_attribs.size(); i += 8) {
     for (size_t j = 0; j < 8; ++j) {
       quantized_attribs->at(i + j) = Quantize(interleaved_attribs[i + j],
-                                              bounds_params->offsets[j],
-                                              bounds_params->scales[j],
-                                              bounds_params->bits[j]);
+                                              bounds_params.offsets[j],
+                                              bounds_params.scales[j],
+                                              bounds_params.bits[j]);
     }
   }
 }
@@ -671,9 +759,9 @@ void CompressQuantizedAttribsToUtf8(const QuantizedAttribList& attribs,
   }
 }
 
-void CompressMeshToFile(const QuantizedAttribList& attribs,
-                        const OptimizedIndexList& indices,
-                        const char* fn) {
+void CompressSimpleMeshToFile(const QuantizedAttribList& attribs,
+                              const OptimizedIndexList& indices,
+                              const char* fn) {
   CHECK((attribs.size() & 7) == 0);
   const size_t num_verts = attribs.size() / 8;
   CHECK(num_verts > 0);

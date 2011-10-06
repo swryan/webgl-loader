@@ -29,35 +29,50 @@ int main(int argc, const char* argv[]) {
     return -1;
   }
   FILE* fp = fopen(argv[1], "r");
+  FILE* fp_out = fopen(argv[2], "wb");
   WavefrontObjFile obj(fp);
   fclose(fp);
-  std::vector<DrawMesh> meshes;
-  obj.CreateDrawMeshes(&meshes);
-  QuantizedAttribList attribs;
-  BoundsParams bounds_params;
-  AttribsToQuantizedAttribs(meshes[0].attribs, &bounds_params, &attribs);
-  WebGLMeshList webgl_meshes;
-  VertexOptimizer vertex_optimizer(attribs, meshes[0].indices);
-  vertex_optimizer.GetOptimizedMeshes(&webgl_meshes);
-  if (webgl_meshes.size() > 1) {
-    CHECK(26 >= webgl_meshes.size());
-    for (size_t i = 0; i < webgl_meshes.size(); ++i) {
-      std::string out(argv[2]);
-      // Strip off trailing ".utf8" if present.
-      if ((5 < out.size()) && (out.substr(out.size() - 5) == ".utf8")) {
-        out = out.substr(0, out.size() - 5);
-      }
-      out += '.';
-      out += 'A' + i;
-      out += ".utf8";
-      CompressMeshToFile(webgl_meshes[i].attribs, webgl_meshes[i].indices,
-                         out.c_str());
-    }
-  } else {
-    CHECK(1 == webgl_meshes.size());
-    CompressMeshToFile(webgl_meshes[0].attribs, webgl_meshes[0].indices,
-                       argv[2]);
+  const TextureBatches& batches = obj.texture_batches();
+
+  // Pass 1: compute bounds.
+  Bounds bounds;
+  bounds.Clear();
+  for (TextureBatches::const_iterator iter = batches.begin();
+       iter != batches.end(); ++iter) {
+    bounds.Enclose(iter->second.draw_mesh().attribs);
   }
-  bounds_params.DumpJson();
+  printf("\"%s\": [\n", argv[2]);
+  size_t offset = 0;
+  std::vector<char> utf8;
+  BoundsParams bounds_params = BoundsParams::FromBounds(bounds);
+  // Pass 2: quantize, optimize, compress, report.
+  for (TextureBatches::const_iterator iter = batches.begin();
+       iter != batches.end(); ++iter) {
+    const DrawMesh& draw_mesh = iter->second.draw_mesh();
+    QuantizedAttribList quantized_attribs;
+    AttribsToQuantizedAttribs(draw_mesh.attribs, bounds_params,
+                              &quantized_attribs);
+    VertexOptimizer vertex_optimizer(quantized_attribs, draw_mesh.indices);
+    WebGLMeshList webgl_meshes;
+    vertex_optimizer.GetOptimizedMeshes(&webgl_meshes);
+    for (size_t i = 0; i < webgl_meshes.size(); ++i) {
+      const size_t num_attribs = webgl_meshes[i].attribs.size();
+      const size_t num_indices = webgl_meshes[i].indices.size();
+      const bool kBadSizes = num_attribs % 8 || num_indices % 3;
+      CHECK(!kBadSizes);
+      CompressQuantizedAttribsToUtf8(webgl_meshes[i].attribs, &utf8);
+      CompressIndicesToUtf8(webgl_meshes[i].indices, &utf8);
+      printf("  { material: \"%s\",\n"
+             "    attribRange: [%zu, %zu],\n"
+             "    indexRange: [%zu, %zu],\n"
+             "  },\n", iter->first.c_str(),
+             offset, num_attribs / 8,
+             offset + num_attribs, num_indices / 3);
+      offset += num_attribs + num_indices;
+    }
+  }
+  fwrite(&utf8[0], 1, utf8.size(), fp_out);
+  fclose(fp_out);
+  puts("],");
   return 0;
 }

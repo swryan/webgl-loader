@@ -1,18 +1,4 @@
-var out = window.document.getElementById('output');
-
-var decode_ms = 0;
-
-var start_drawing = false;
-
-function UpdateDecode(ms) {
-  decode_ms += ms;
-}
-
-function UpdateTotal(ms) {
-  start_drawing = true;
-  out.innerHTML = "Decode time: " + decode_ms +
-      " ms, Total time: " + ms + " ms";
-}
+'use strict';
 
 var BUDDHA_ATTRIB_ARRAYS = [
   { name: "a_position",
@@ -31,35 +17,6 @@ var BUDDHA_ATTRIB_ARRAYS = [
     decodeScale: 1/1023
   }
 ];
-
-var urls = [ 'happy.A.utf8',
-             'happy.B.utf8',
-             'happy.C.utf8',
-             'happy.D.utf8',
-             'happy.E.utf8',
-             'happy.F.utf8',
-             'happy.G.utf8',
-             'happy.H.utf8',
-             'happy.I.utf8',
-             'happy.J.utf8',
-             'happy.K.utf8' ];
-
-function Mesh(gl, attribs_indices) {
-  this.num_indices = attribs_indices[1].length;
-
-  var buffers = meshBufferData(gl, attribs_indices);
-  this.vbo = buffers[0];
-  this.ibo = buffers[1];
-}
-
-Mesh.prototype.BindAndDraw = function(gl, program) {
-  gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
-  program.vertexAttribPointers(BUDDHA_ATTRIB_ARRAYS);
-
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo);
-
-  gl.drawElements(gl.TRIANGLES, this.num_indices, gl.UNSIGNED_SHORT, 0);
-}
 
 function LoaderExample() { }
 
@@ -83,22 +40,57 @@ load : function(gl)
   program.use();
   program.enableVertexAttribArrays(BUDDHA_ATTRIB_ARRAYS);
 
-  var start_time = Date.now();
   var meshes = [];
-  for (var i = 0; i < urls.length; ++i) {
-    getHttpRequest(urls[i], function(xhr) {
-      if (this.status == 0 || this.status == 200) {
-        var decodeStart = Date.now();
-        var decoded = decompressSimpleMesh(xhr.responseText, 
-                                           BUDDHA_ATTRIB_ARRAYS);
-        UpdateDecode(Date.now() - decodeStart);
-        meshes[meshes.length] = new Mesh(gl, decoded);
-        if (meshes.length === urls.length) {
-          UpdateTotal(Date.now() - start_time);
-        }
-      }
-    });
-  }
+  downloadMeshes({
+    "happy.utf8": [
+      { material: "",
+        attribRange: [0, 55294],
+        indexRange: [442352, 107195],
+      },
+      { material: "",
+        attribRange: [763937, 55294],
+        indexRange: [1206289, 107742],
+      },
+      { material: "",
+        attribRange: [1529515, 55294],
+        indexRange: [1971867, 107160],
+      },
+      { material: "",
+        attribRange: [2293347, 55294],
+        indexRange: [2735699, 106284],
+      },
+      { material: "",
+        attribRange: [3054551, 55294],
+        indexRange: [3496903, 107142],
+      },
+      { material: "",
+        attribRange: [3818329, 55294],
+        indexRange: [4260681, 107062],
+      },
+      { material: "",
+        attribRange: [4581867, 55294],
+        indexRange: [5024219, 105773],
+      },
+      { material: "",
+        attribRange: [5341538, 55294],
+        indexRange: [5783890, 107983],
+      },
+      { material: "",
+        attribRange: [6107839, 55294],
+        indexRange: [6550191, 104468],
+      },
+      { material: "",
+        attribRange: [6863595, 55294],
+        indexRange: [7305947, 102345],
+      },
+      { material: "",
+        attribRange: [7612982, 13733],
+        indexRange: [7722846, 24562],
+      },
+    ],
+  }, BUDDHA_ATTRIB_ARRAYS, function(attribArray, indexArray) {
+    meshes.push(new Mesh(gl, attribArray, indexArray, BUDDHA_ATTRIB_ARRAYS));
+  });
 
   this.meshes = meshes;
 },
@@ -114,7 +106,7 @@ draw : function(gl)
   var w = this.ui.width;
   var h = this.ui.height;
 
-  gl.clearColor(0.2, 0.2, 0.6, 1.0);
+  gl.clearColor(0.4, 0.4, 0.4, 1.0);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
 
   gl.viewport(0, 0, w, h);
@@ -134,7 +126,7 @@ draw : function(gl)
   for (var i = 0; i < this.meshes.length; ++i) {
     var mesh = this.meshes[i];
     if (mesh) {
-      mesh.BindAndDraw(gl, this.program);
+      mesh.bindAndDraw(this.program);
     }
   }
 }
