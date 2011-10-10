@@ -103,25 +103,43 @@ Program.prototype.vertexAttribPointers = function(attribArrays) {
   }
 };
 
-function textureFromImage(gl, image) {
+// TODO: seems like texture ought to be a class...
+
+function textureFromArray(gl, width, height, array, opt_texture) {
+  var opt_texture = opt_texture || gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, opt_texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, width, height, 0,
+                gl.RGB, gl.UNSIGNED_BYTE, array);
+  return opt_texture;
+}
+
+function textureFromImage(gl, image, opt_texture) {
   // TODO: texture formats. Color, MIP-mapping, etc.
-  var texture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, texture);
+  opt_texture = opt_texture || gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, opt_texture);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER,
-                   gl.LINEAR_MIPMAP_NEAREST);
+                   gl.LINEAR_MIPMAP_LINEAR);
   gl.generateMipmap(gl.TEXTURE_2D);
-  return texture;
+  return opt_texture;
 }
 
 function textureFromUrl(gl, url, opt_callback) {
+  var texture = gl.createTexture();
   var image = new Image;
   image.onload = function() {
-    var texture = textureFromImage(gl, image);
+    textureFromImage(gl, image, texture);
+    opt_callback && opt_callback(gl, texture);
+  };
+  image.onerror = function() {
+    textureFromArray(gl, 1, 1, new Uint8Array([255, 255, 255]), texture);
     opt_callback && opt_callback(gl, texture);
   };
   image.src = url;
+  return texture;
 }
 
 function meshBufferData(gl, attribArray, indexArray) {
@@ -136,10 +154,11 @@ function meshBufferData(gl, attribArray, indexArray) {
   return [attribBuffer, indexBuffer];
 }
 
-function Mesh(gl, attribArray, indexArray, attribArrays) {
+function Mesh(gl, attribArray, indexArray, attribArrays, texture) {
   this.gl_ = gl;
   this.attribArrays_ = attribArrays;  // TODO: better name!
   this.numIndices_ = indexArray.length;
+  this.texture_ = texture || null;
 
   var buffers = meshBufferData(gl, attribArray, indexArray);
   this.vbo_ = buffers[0];
@@ -148,9 +167,11 @@ function Mesh(gl, attribArray, indexArray, attribArrays) {
 
 Mesh.prototype.bindAndDraw = function(program) {
   var gl = this.gl_;
+
+  gl.bindTexture(gl.TEXTURE_2D, this.texture_);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo_);
   gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo_);
   program.vertexAttribPointers(this.attribArrays_);
 
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo_);
   gl.drawElements(gl.TRIANGLES, this.numIndices_, gl.UNSIGNED_SHORT, 0);
 };

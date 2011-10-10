@@ -13,6 +13,9 @@ renderer.program_ = new Program(gl, [vertexShader(gl, simpleVsrc),
 renderer.program_.use();
 renderer.program_.enableVertexAttribArrays(DEFAULT_ATTRIB_ARRAYS);
 
+gl.activeTexture(gl.TEXTURE0);
+gl.uniform1i(renderer.program_.set_uniform.u_diffuse_sampler, 0);
+
 // TODO: instead of having these callbacks reach into Renderer's
 // internal state, factor such state into a single manager. This will
 // be useful for things like serialization and simulation.
@@ -51,8 +54,11 @@ addWheelHandler(window, function(dx, dy, evt) {
   return false;
 });
 
-function onLoad(attribArray, indexArray) {
+function onLoad(attribArray, indexArray, meshEntry) {
   renderer.meshes_.push(
-    new Mesh(gl, attribArray, indexArray, DEFAULT_ATTRIB_ARRAYS));
+    new Mesh(gl, attribArray, indexArray, DEFAULT_ATTRIB_ARRAYS,
+             textureFromUrl(gl, meshEntry.material, function() {
+               renderer.postRedisplay();
+             })));
   renderer.postRedisplay();
 }

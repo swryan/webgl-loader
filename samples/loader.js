@@ -101,7 +101,7 @@ function decompressSimpleMesh(str, attribArrays) {
 function decompressMeshes(str, meshRanges, attribArrays) {
   // Extract conversion parameters from attribArrays.
   var stride = attribArrays[0].stride;  // TODO: generalize.
-  var decodeOffsets = new Float32Array(stride);
+  var decodeOffsets = new Int32Array(stride);
   var decodeScales = new Float32Array(stride);
   getDecodeParameters_(attribArrays, decodeOffsets, decodeScales);
 
@@ -139,18 +139,21 @@ function decompressMeshes(str, meshRanges, attribArrays) {
 }
 
 function downloadMeshes(meshUrlMap, attribArrays, callback) {
+  // TODO: Needs an Object.forEach or somesuch.
   for (var url in meshUrlMap) {
-    getHttpRequest(url, function(xhr) {
-      if (xhr.status === 200 || xhr.status === 0) {
-        var meshes = decompressMeshes(xhr.responseText,
-                                      meshUrlMap[url],
-                                      attribArrays);
-        var numMeshes = meshes.length;
-        for (var i = 0; i < numMeshes; i++) {
-          callback(meshes[i][0], meshes[i][1]);
-        }
-      }
-      // TODO: handle errors.
-    });
+    var meshEntry = meshUrlMap[url];
+    getHttpRequest(url, (function(meshEntry) {
+      return function(xhr) {
+        if (xhr.status === 200 || xhr.status === 0) {
+          var meshes = decompressMeshes(xhr.responseText,
+                                        meshEntry,
+                                        attribArrays);
+          var numMeshes = meshes.length;
+          for (var i = 0; i < numMeshes; i++) {
+            callback(meshes[i][0], meshes[i][1], meshEntry[i]);
+          }
+        }  // TODO: handle errors.
+      };
+    })(meshUrlMap[url]));
   }
 }

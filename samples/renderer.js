@@ -32,6 +32,7 @@ function Renderer(canvas) {
   gl.clearColor(0.4, 0.4, 0.4, 1.0);
   gl.enable(gl.CULL_FACE);
   gl.enable(gl.DEPTH_TEST);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 }
 
 Renderer.prototype.postRedisplay = function() {
