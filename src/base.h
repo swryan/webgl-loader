@@ -21,6 +21,7 @@
 
 typedef unsigned short uint16;
 typedef short int16;
+typedef unsigned int uint32;
 
 typedef std::vector<float> AttribList;
 typedef std::vector<int> IndexList;
@@ -61,6 +62,32 @@ static inline void terminateAtNewline(const char* str) {
   char* newline = strpbrk(str, "\r\n");
   if (newline) {
     *newline = '\0';
+  }
+}
+
+// Jenkin's One-at-a-time Hash. Not the best, but simple and
+// portable.
+uint32 SimpleHash(char *key, size_t len, uint32 seed = 0) {
+  uint32 hash = seed;
+  for(size_t i = 0; i < len; ++i) {
+    hash += static_cast<unsigned char>(key[i]);
+    hash += (hash << 10);
+    hash ^= (hash >> 6);
+  }
+  hash += (hash << 3);
+  hash ^= (hash >> 11);
+  hash += (hash << 15);
+  return hash;
+}
+
+void ToHex(uint32 w, char out[9]) {
+  const char kOffset0 = '0';
+  const char kOffset10 = 'a' - 10;
+  out[8] = '\0';
+  for (size_t i = 8; i > 0;) {
+    uint32 bits = w & 0xF;
+    out[--i] = bits + ((bits < 10) ? kOffset0 : kOffset10);
+    w >>= 4;
   }
 }
 

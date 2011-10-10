@@ -394,7 +394,9 @@ class WavefrontObjFile {
     printf("positions size: %zu\ntexcoords size: %zu\nnormals size: %zu\n",
            positions_.size(), texcoords_.size(), normals_.size());
   }
- private:  
+ private:
+  WavefrontObjFile() { } // For testing.
+
   void ParseFile(FILE* fp) {
     // TODO: don't use a fixed-size buffer.
     const size_t kLineBufferSize = 256;
@@ -617,7 +619,6 @@ class WavefrontObjFile {
 
   // Currently, batch by texture (i.e. map_Kd).
   TextureBatches texture_batches_;
-  DrawBatch no_texture_;
   DrawBatch* current_;
 };
 
@@ -656,13 +657,11 @@ float UniformScaleFromBounds(const Bounds& bounds) {
       : ((y > z) ? y : z);
 }
 
-uint16 Quantize(float f, float offset, float range, int bits) {
-  const float f_offset = f + offset;
-  // Losslessly multiply a float by 1 << bits;
-  const float f_scaled = ldexpf(f_offset, bits);
-  // static_cast rounds towards zero (i.e. truncates).
-  return static_cast<uint16>(f_scaled / range - 0.5f);
+uint16 Quantize(float f, float in_min, float in_scale, uint16 out_max) {
+  return static_cast<uint16>(out_max * ((f-in_min) / in_scale));
 }
+
+// -1, -1, 2, 30 => -10   
 
 struct BoundsParams {
   static BoundsParams FromBounds(const Bounds& bounds) {
@@ -670,42 +669,52 @@ struct BoundsParams {
     const float scale = UniformScaleFromBounds(bounds);
     // Position. Use a uniform scale.
     for (size_t i = 0; i < 3; ++i) {
-      ret.offsets[i] = -bounds.mins[i];
+      const int maxPosition = (1 << 14) - 1;  // 16383;
+      ret.mins[i] = bounds.mins[i];
       ret.scales[i] = scale;
-      ret.bits[i] = 14;
+      ret.outputMaxes[i] = maxPosition;
+      ret.decodeOffsets[i] = maxPosition * bounds.mins[i] / scale;
+      ret.decodeScales[i] = scale / maxPosition;
     }
     // TexCoord.
+    // TODO: get bounds-dependent texcoords working!
     for (size_t i = 3; i < 5; ++i) {
-      ret.offsets[i] = -bounds.mins[i];
-      ret.scales[i] = bounds.maxes[i] - bounds.mins[i];
-      ret.bits[i] = 10;
+      // const float texScale = bounds.maxes[i] - bounds.mins[i];
+      const int maxTexcoord = (1 << 10) - 1;  // 1023
+      ret.mins[i] = 0;  //bounds.mins[i];
+      ret.scales[i] = 1;  //texScale;
+      ret.outputMaxes[i] = maxTexcoord;
+      ret.decodeOffsets[i] = 0;  //maxTexcoord * bounds.mins[i] / texScale;
+      ret.decodeScales[i] = 1.0f / maxTexcoord;  // texScale / maxTexcoord;
     }
     // Normal. Always uniform range.
     for (size_t i = 5; i < 8; ++i) {
-      ret.offsets[i] = 1.f;
+      ret.mins[i] = -1;
       ret.scales[i] = 2.f;
-      ret.bits[i] = 10;
+      ret.outputMaxes[i] = (1 << 10) - 1;  // 1023
+      ret.decodeOffsets[i] = 1 - (1 << 9);  // -511
+      ret.decodeScales[i] = 1.0 / 511;
     }
     return ret;
   }
 
   void DumpJson() {
     puts("{");
-    printf("  offsets: [%f,%f,%f,%f,%f,%f,%f,%f],\n",
-           offsets[0], offsets[1], offsets[2], offsets[3],
-           offsets[4], offsets[5], offsets[6], offsets[7]);
-    printf("  scales: [%f,%f,%f,%f,%f,%f,%f,%f],\n",
-           scales[0], scales[1], scales[2], scales[3],
-           scales[4], scales[5], scales[6], scales[7]);
-    printf("  bits: [%d,%d,%d,%d,%d,%d,%d,%d]\n",
-           bits[0], bits[1], bits[2], bits[3],
-           bits[4], bits[5], bits[6], bits[7]);
+    printf("  decodeOffsets: [%d,%d,%d,%d,%d,%d,%d,%d],\n",
+           decodeOffsets[0], decodeOffsets[1], decodeOffsets[2],
+           decodeOffsets[3], decodeOffsets[4], decodeOffsets[5],
+           decodeOffsets[6], decodeOffsets[7]);
+    printf("  decodeScales: [%f,%f,%f,%f,%f,%f,%f,%f],\n",
+           decodeScales[0], decodeScales[1], decodeScales[2], decodeScales[3],
+           decodeScales[4], decodeScales[5], decodeScales[6], decodeScales[7]);
     puts("};");
   }
-  
-  float offsets[8];
+
+  float mins[8];
   float scales[8];
-  int bits[8];
+  int outputMaxes[8];
+  int decodeOffsets[8];
+  float decodeScales[8];
 };
 
 void AttribsToQuantizedAttribs(const AttribList& interleaved_attribs,
@@ -715,9 +724,9 @@ void AttribsToQuantizedAttribs(const AttribList& interleaved_attribs,
   for (size_t i = 0; i < interleaved_attribs.size(); i += 8) {
     for (size_t j = 0; j < 8; ++j) {
       quantized_attribs->at(i + j) = Quantize(interleaved_attribs[i + j],
-                                              bounds_params.offsets[j],
+                                              bounds_params.mins[j],
                                               bounds_params.scales[j],
-                                              bounds_params.bits[j]);
+                                              bounds_params.outputMaxes[j]);
     }
   }
 }
