@@ -1,28 +1,48 @@
 'use strict';
 
+// Contains objects like:
+// name: { 
+//   materials: { 'material_name': { ... } ... },
+//   decodeParams: {
+//     decodeOffsets: [ ... ],
+//     decodeScales: [ ... ],
+//   },
+//   urls: {
+//     url: [
+//       { material: 'material_name',
+//         attribRange: [#, #],
+//         indexRange: [#, #],
+//         names: [ 'object names' ... ],
+//         lengths: [#, #, # ... ]
+//       }
+//     ],
+//     ...
+//   }
+// }
+var MODELS = {};
+
 var DEFAULT_ATTRIB_ARRAYS = [
   { name: "a_position",
     size: 3,
     stride: 8,
-    offset: 0,
-    decodeOffset: -4095,
-    decodeScale: 1/8191
+    offset: 0
   }, 
   { name: "a_texcoord",
     size: 2,
     stride: 8,
-    offset: 3,
-    decodeOffset: 0,
-    decodeScale: 1/1023
+    offset: 3
   },
   { name: "a_normal",
     size: 3,
     stride: 8,
-    offset: 5,
-    decodeOffset: -511,
-    decodeScale: 1/1023
+    offset: 5
   }
 ];
+
+var DEFAULT_DECODE_PARAMS = {
+  decodeOffsets: [-4095, -4095, -4095, 0, 0, -511, -511, -511],
+  decodeScales: [1/8191, 1/8191, 1/8191, 1/1023, 1/1023, 1/1023, 1/1023, 1/1023]
+};
 
 // TODO: will it be an optimization to specialize this method at
 // runtime for different combinations of stride, decodeOffset and
@@ -51,59 +71,11 @@ function decompressIndices_(str, inputStart, numIndices,
   }
 }
 
-function getDecodeParameters_(attribArrays, decodeOffsets, decodeScales) {
-  var numArrays = attribArrays.length;
-  for (var i = 0; i < numArrays; i++) {
-    var attribArray = attribArrays[i];
-    var end = attribArray.offset + attribArray.size;
-    for (var j = attribArray.offset; j < end; j++) {
-      decodeOffsets[j] = attribArray.decodeOffset;
-      decodeScales[j] = attribArray.decodeScale;
-    }
-  }
-}
-
-function decompressSimpleMesh(str, attribArrays) {
-  var numVerts = str.charCodeAt(0);
-  if (numVerts >= 0xE000) numVerts -= 0x0800;
-  numVerts++;
-
+function decompressMeshes(str, meshRanges, decodeParams) {
   // Extract conversion parameters from attribArrays.
-  var stride = attribArrays[0].stride;  // TODO: generalize.
-  var decodeOffsets = new Float32Array(stride);
-  var decodeScales = new Float32Array(stride);
-  getDecodeParameters_(attribArrays, decodeOffsets, decodeScales);
-
-  // Decode attributes.
-  var inputOffset = 1;
-  var attribsOut = new Float32Array(stride * numVerts);
-  for (var i = 0; i < stride; i++) {
-    var end = inputOffset + numVerts;
-    var decodeScale = decodeScales[i];
-    if (decodeScale) {
-      // Assume if decodeScale is never set, simply ignore the
-      // attribute.
-      decompressAttribsInner_(str, inputOffset, end,
-                              attribsOut, i, stride,
-                              decodeOffsets[i], decodeScale);
-    }
-    inputOffset = end;
-  }
-
-  // Decode indices.
-  var numIndices = str.length - inputOffset;
-  var indicesOut = new Uint16Array(numIndices);
-  decompressIndices_(str, inputOffset, numIndices, indicesOut, 0);
-
-  return [attribsOut, indicesOut];
-}
-
-function decompressMeshes(str, meshRanges, attribArrays) {
-  // Extract conversion parameters from attribArrays.
-  var stride = attribArrays[0].stride;  // TODO: generalize.
-  var decodeOffsets = new Int32Array(stride);
-  var decodeScales = new Float32Array(stride);
-  getDecodeParameters_(attribArrays, decodeOffsets, decodeScales);
+  var stride = decodeParams.decodeScales.length;
+  var decodeOffsets = decodeParams.decodeOffsets;
+  var decodeScales = decodeParams.decodeScales;
 
   var meshes = [];
   var numMeshes = meshRanges.length;
@@ -138,7 +110,7 @@ function decompressMeshes(str, meshRanges, attribArrays) {
   return meshes;
 }
 
-function downloadMeshes(meshUrlMap, attribArrays, callback) {
+function downloadMeshes(meshUrlMap, decodeParams, callback) {
   // TODO: Needs an Object.forEach or somesuch.
   for (var url in meshUrlMap) {
     var meshEntry = meshUrlMap[url];
@@ -146,8 +118,7 @@ function downloadMeshes(meshUrlMap, attribArrays, callback) {
       return function(xhr) {
         if (xhr.status === 200 || xhr.status === 0) {
           var meshes = decompressMeshes(xhr.responseText,
-                                        meshEntry,
-                                        attribArrays);
+                                        meshEntry, decodeParams);
           var numMeshes = meshes.length;
           for (var i = 0; i < numMeshes; i++) {
             callback(meshes[i][0], meshes[i][1], meshEntry[i]);
@@ -156,4 +127,9 @@ function downloadMeshes(meshUrlMap, attribArrays, callback) {
       };
     })(meshUrlMap[url]));
   }
+}
+
+function downloadModel(model, callback) {
+  var model = MODELS[model];
+  downloadMeshes(model.urls, model.decodeParams, callback);
 }

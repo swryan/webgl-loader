@@ -232,14 +232,14 @@ class IndexFlattener {
 static inline size_t positionDim() { return 3; }
 static inline size_t texcoordDim() { return 2; }
 static inline size_t normalDim() { return 3; }
-  
+
+struct GroupStart {
+  size_t offset;  // offset into draw_mesh_.indices.
+  unsigned int group_line;
+};
+
 class DrawBatch {
  public:
-  struct GroupStart {
-    size_t offset;  // offset into draw_mesh_.indices.
-    unsigned int group_line;
-  };
-
   DrawBatch()
       : flattener_(0),
         current_group_line_(0) {
@@ -318,16 +318,16 @@ struct Material {
   std::string map_Kd;
 
   void DumpJson() const {
-    printf("  \'%s\': {\n", name.c_str());
+    printf("    \'%s\': {\n", name.c_str());
     if (map_Kd.empty()) {
-      printf("    Kd: [%hu, %hu, %hu],\n",
+      printf("      Kd: [%hu, %hu, %hu],\n",
              Quantize(Kd[0], 0, 1, 255),
              Quantize(Kd[1], 0, 1, 255),
              Quantize(Kd[2], 0, 1, 255));
     } else {
-      printf("    map_Kd: \'%s\',\n", map_Kd.c_str());
+      printf("      map_Kd: \'%s\',\n", map_Kd.c_str());
     }
-    puts("  },");  // TODO: JSON serialization needs to be better.
+    puts("    },");  // TODO: JSON serialization needs to be better!
   }
 };
 
@@ -758,14 +758,14 @@ struct BoundsParams {
 
   void DumpJson() {
     puts("{");
-    printf("  decodeOffsets: [%d,%d,%d,%d,%d,%d,%d,%d],\n",
+    printf("    decodeOffsets: [%d,%d,%d,%d,%d,%d,%d,%d],\n",
            decodeOffsets[0], decodeOffsets[1], decodeOffsets[2],
            decodeOffsets[3], decodeOffsets[4], decodeOffsets[5],
            decodeOffsets[6], decodeOffsets[7]);
-    printf("  decodeScales: [%f,%f,%f,%f,%f,%f,%f,%f],\n",
+    printf("    decodeScales: [%f,%f,%f,%f,%f,%f,%f,%f],\n",
            decodeScales[0], decodeScales[1], decodeScales[2], decodeScales[3],
            decodeScales[4], decodeScales[5], decodeScales[6], decodeScales[7]);
-    puts("};");
+    puts("  },");
   }
 
   float mins[8];

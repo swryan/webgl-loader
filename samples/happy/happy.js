@@ -18,6 +18,12 @@ var BUDDHA_ATTRIB_ARRAYS = [
   }
 ];
 
+var BUDDHA_DECODE_PARAMS = {
+  decodeOffsets: [-4095, -4095, -4095, 0, 0, -511, -511, -511],
+  decodeScales: [1/8191, 1/8191, 1/8191, 0, 0, 1/1023, 1/1023, 1/1023]
+};
+
+
 function LoaderExample() { }
 
 LoaderExample.prototype = {
@@ -88,7 +94,7 @@ load : function(gl)
         indexRange: [7722846, 24562],
       },
     ],
-  }, BUDDHA_ATTRIB_ARRAYS, function(attribArray, indexArray) {
+  }, BUDDHA_DECODE_PARAMS, function(attribArray, indexArray) {
     meshes.push(new Mesh(gl, attribArray, indexArray, BUDDHA_ATTRIB_ARRAYS));
   });
 

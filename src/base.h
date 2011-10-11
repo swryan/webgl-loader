@@ -59,6 +59,18 @@ static inline const char* StripLeadingWhitespace(const char* str) {
   return str;
 }
 
+// Like basename.
+static inline const char* StripLeadingDir(const char* str) {
+  const char* last_slash = NULL;
+  while (const char ch = *str) {
+    if (ch == '/' || ch == '\\') {
+      last_slash = str;
+    }
+    ++str;
+  }
+  return last_slash ? (last_slash + 1) : str;
+}
+
 static inline void TerminateAtNewlineOrComment(const char* str) {
   char* newline = strpbrk(str, "#\r\n");
   if (newline) {
