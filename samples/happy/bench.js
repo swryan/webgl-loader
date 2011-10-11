@@ -14,17 +14,7 @@ function updateTotal(ms) {
       " ms, Total time: " + ms + " ms";
 }
 
-var URLS = [ 'happy.A.utf8',
-             'happy.B.utf8',
-             'happy.C.utf8',
-             'happy.D.utf8',
-             'happy.E.utf8',
-             'happy.F.utf8',
-             'happy.G.utf8',
-             'happy.H.utf8',
-             'happy.I.utf8',
-             'happy.J.utf8',
-             'happy.K.utf8' ];
+var URLS = [ 'happy.utf8' ];
 
 var DEFAULT_ATTRIB_ARRAYS = [
   {
