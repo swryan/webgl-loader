@@ -229,16 +229,26 @@ class IndexFlattener {
   MapType map_;
 };
 
-
 static inline size_t positionDim() { return 3; }
 static inline size_t texcoordDim() { return 2; }
 static inline size_t normalDim() { return 3; }
   
 class DrawBatch {
  public:
+  struct GroupStart {
+    size_t offset;  // offset into draw_mesh_.indices.
+    unsigned int group_line;
+  };
+
   DrawBatch()
-      : flattener_(0) {
+      : flattener_(0),
+        current_group_line_(0) {
   }
+
+  const std::vector<GroupStart>& group_starts() const {
+    return group_starts_;
+  }
+  
   void Init(AttribList* positions, AttribList* texcoords, AttribList* normals) {
     positions_ = positions;
     texcoords_ = texcoords;
@@ -246,7 +256,14 @@ class DrawBatch {
     flattener_.reserve(1024);
   }
   
-  void AddTriangle(int* indices) {
+  void AddTriangle(unsigned int group_line, int* indices) {
+    if (group_line != current_group_line_) {
+      current_group_line_ = group_line;
+      GroupStart group_start;
+      group_start.offset = draw_mesh_.indices.size();
+      group_start.group_line = group_line;
+      group_starts_.push_back(group_start);
+    }
     for (size_t i = 0; i < 9; i += 3) {
       // .OBJ files use 1-based indexing.
       const int position_index = indices[i + 0] - 1;
@@ -291,12 +308,27 @@ class DrawBatch {
   AttribList* positions_, *texcoords_, *normals_;
   DrawMesh draw_mesh_;
   IndexFlattener flattener_;
+  unsigned int current_group_line_;
+  std::vector<GroupStart> group_starts_;
 };
 
 struct Material {
   std::string name;
   float Kd[3];
   std::string map_Kd;
+
+  void DumpJson() const {
+    printf("  \'%s\': {\n", name.c_str());
+    if (map_Kd.empty()) {
+      printf("    Kd: [%hu, %hu, %hu],\n",
+             Quantize(Kd[0], 0, 1, 255),
+             Quantize(Kd[1], 0, 1, 255),
+             Quantize(Kd[2], 0, 1, 255));
+    } else {
+      printf("    map_Kd: \'%s\',\n", map_Kd.c_str());
+    }
+    puts("  },");  // TODO: JSON serialization needs to be better.
+  }
 };
 
 typedef std::vector<Material> MaterialList;
@@ -319,8 +351,8 @@ class WavefrontMtlFile {
     char buffer[kLineBufferSize];
     unsigned int line_num = 1;
     while (fgets(buffer, kLineBufferSize, fp) != NULL) {
-      const char* stripped = stripLeadingWhitespace(buffer);
-      terminateAtNewline(stripped);
+      const char* stripped = StripLeadingWhitespace(buffer);
+      TerminateAtNewlineOrComment(stripped);
       ParseLine(stripped, line_num++);
     }
   }
@@ -361,33 +393,60 @@ class WavefrontMtlFile {
   }
 
   void ParseMapKd(const char* line, unsigned int line_num) {
-    current_->map_Kd = stripLeadingWhitespace(line);
+    current_->map_Kd = StripLeadingWhitespace(line);
   }
 
   void ParseNewmtl(const char* line, unsigned int line_num) {
     materials_.push_back(Material());
     current_ = &materials_.back();
-    current_->name = stripLeadingWhitespace(line);
+    current_->name = StripLeadingWhitespace(line);
   }
 
   Material* current_;
   MaterialList materials_;
 };
 
-typedef std::map<std::string, DrawBatch> TextureBatches;
+typedef std::map<std::string, DrawBatch> MaterialBatches;
 
 // TODO: consider splitting this into a low-level parser and a high-level
 // object.
 class WavefrontObjFile {
  public:
   explicit WavefrontObjFile(FILE* fp) {
-    current_ = &texture_batches_[""];
-    current_->Init(&positions_, &texcoords_, &normals_);
+    current_batch_ = &material_batches_[""];
+    current_batch_->Init(&positions_, &texcoords_, &normals_);
+    current_group_line_ = 0;
+    line_to_groups_.insert(std::make_pair(0, "default"));
     ParseFile(fp);
   }
 
-  const TextureBatches& texture_batches() const {
-    return texture_batches_;
+  const MaterialList& materials() const {
+    return materials_;
+  }
+
+  const MaterialBatches& material_batches() const {
+    return material_batches_;
+  }
+  
+  const std::string& LineToGroup(unsigned int line) const {
+    typedef LineToGroups::const_iterator Iterator;
+    typedef std::pair<Iterator, Iterator> EqualRange;
+    EqualRange equal_range = line_to_groups_.equal_range(line);
+    const std::string* best_group = NULL;
+    int best_count = 0;
+    for (Iterator iter = equal_range.first; iter != equal_range.second;
+         ++iter) {
+      const std::string& group = iter->second;
+      const int count = group_counts_.find(group)->second;
+      if (!best_group || (count < best_count)) {
+        best_group = &group;
+        best_count = count;
+      }
+    }
+    if (!best_group) {
+      ErrorLine("no suitable group found", line);
+    }
+    return *best_group;
   }
 
   void DumpDebug() const {
@@ -403,8 +462,8 @@ class WavefrontObjFile {
     char buffer[kLineBufferSize] = { 0 };
     unsigned int line_num = 1;
     while (fgets(buffer, kLineBufferSize, fp) != NULL) {
-      const char* stripped = stripLeadingWhitespace(buffer);
-      terminateAtNewline(stripped);
+      const char* stripped = StripLeadingWhitespace(buffer);
+      TerminateAtNewlineOrComment(stripped);
       ParseLine(stripped, line_num++);
     }
   }
@@ -418,7 +477,11 @@ class WavefrontObjFile {
         ParseFace(line + 1, line_num);
         break;
       case 'g':
-        ParseGroup(line + 1, line_num);
+        if (isspace(line[1])) {
+          ParseGroup(line + 2, line_num);
+        } else {
+          goto unknown;
+        }
         break;
       case '\0':
       case '#':
@@ -427,7 +490,7 @@ class WavefrontObjFile {
         WarnLine("point unsupported", line_num);
         break;
       case 'l':
-        WarnLine("line unspported", line_num);
+        WarnLine("line unsupported", line_num);
         break;
       case 'u':
         if (0 == strncmp(line + 1, "semtl", 5)) {
@@ -516,7 +579,7 @@ class WavefrontObjFile {
     // triangle to the fan.
     while ((line = ParseIndices(line, line_num,
                                 indices + 6, indices + 7, indices + 8))) {
-      current_->AddTriangle(indices);
+      current_batch_->AddTriangle(current_group_line_, indices);
       // The most recent vertex is reused for the next triangle.
       indices[3] = indices[6];
       indices[4] = indices[7];
@@ -549,63 +612,59 @@ class WavefrontObjFile {
     }
     return endptr;
   }
-  
+
+  // .OBJ files can specify multiple groups for a set of faces. This
+  // implementation finds the "most unique" group for a set of faces
+  // and uses that for the batch. In the first pass, we use the line
+  // number of the "g" command to tag the faces. Afterwards, after we
+  // collect group populations, we can go back and give them real
+  // names.
   void ParseGroup(const char* line, unsigned int line_num) {
-    static bool once = true;
-    if (once) {
-      WarnLine("group unsupported", line_num);
-      once = false;
+    std::string token;
+    while ((line = ConsumeFirstToken(line, &token))) {
+      group_counts_[token]++;
+      line_to_groups_.insert(std::make_pair(line_num, token));
     }
+    current_group_line_ = line_num;
   }
 
   void ParseSmoothingGroup(const char* line, unsigned int line_num) {
     static bool once = true;
     if (once) {
-      WarnLine("s unsupported", line_num);
+      WarnLine("s ignored", line_num);
       once = false;
     }
   }
 
   void ParseMtllib(const char* line, unsigned int line_num) {
-    FILE* fp = fopen(stripLeadingWhitespace(line), "r");
+    FILE* fp = fopen(StripLeadingWhitespace(line), "r");
     if (!fp) {
       WarnLine("mtllib not found", line_num);
       return;
     }
     WavefrontMtlFile mtlfile(fp);
     fclose(fp);
-    const MaterialList& materials = mtlfile.materials();
-    for (size_t i = 0; i < materials.size(); ++i) {
-      materials_.push_back(materials[i]);
-      const std::string& texture = materials[i].map_Kd;
-      material_textures_[materials[i].name] = texture;
-      if (!texture.empty()) {
-        DrawBatch& draw_batch = texture_batches_[texture];
-        draw_batch.Init(&positions_, &texcoords_, &normals_);
-      }
+    materials_ = mtlfile.materials();
+    for (size_t i = 0; i < materials_.size(); ++i) {
+      DrawBatch& draw_batch = material_batches_[materials_[i].name];
+      draw_batch.Init(&positions_, &texcoords_, &normals_);
     }
   }
 
   void ParseUsemtl(const char* line, unsigned int line_num) {
-    const std::string usemtl = stripLeadingWhitespace(line);
-    MaterialTextures::const_iterator texture_iter =
-        material_textures_.find(usemtl);
-    const std::string& texture = texture_iter != material_textures_.end() ?
-        texture_iter->second : "";
-    
-    TextureBatches::iterator iter =
-        texture_batches_.find(texture);
-    if (iter == texture_batches_.end()) {
-      ErrorLine("texture not found", line_num);
+    const std::string& usemtl = StripLeadingWhitespace(line);    
+    MaterialBatches::iterator iter = material_batches_.find(usemtl);
+    if (iter == material_batches_.end()) {
+      ErrorLine("material not found", line_num);
     }
-    current_ = &iter->second;
+    current_batch_ = &iter->second;
   }
 
-  void WarnLine(const char* why, unsigned int line_num) {
+  void WarnLine(const char* why, unsigned int line_num) const {
     fprintf(stderr, "WARNING: %s at line %u\n", why, line_num);
   }
 
-  void ErrorLine(const char* why, unsigned int line_num) {
+  void ErrorLine(const char* why, unsigned int line_num) const {
     fprintf(stderr, "ERROR: %s at line %u\n", why, line_num);
     exit(-1);
   }
@@ -614,12 +673,15 @@ class WavefrontObjFile {
   AttribList texcoords_;
   AttribList normals_;
   MaterialList materials_;
-  typedef std::map<std::string, std::string> MaterialTextures;
-  MaterialTextures material_textures_;
 
   // Currently, batch by texture (i.e. map_Kd).
-  TextureBatches texture_batches_;
-  DrawBatch* current_;
+  MaterialBatches material_batches_;
+  DrawBatch* current_batch_;
+  
+  typedef std::multimap<unsigned int, std::string> LineToGroups;
+  LineToGroups line_to_groups_;
+  std::map<std::string, int> group_counts_;
+  unsigned int current_group_line_;
 };
 
 struct Bounds {
@@ -655,10 +717,6 @@ float UniformScaleFromBounds(const Bounds& bounds) {
   return (x > y)
       ? ((x > z) ? x : z)
       : ((y > z) ? y : z);
-}
-
-uint16 Quantize(float f, float in_min, float in_scale, uint16 out_max) {
-  return static_cast<uint16>(out_max * ((f-in_min) / in_scale));
 }
 
 // -1, -1, 2, 30 => -10   

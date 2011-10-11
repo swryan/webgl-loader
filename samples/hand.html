@@ -73,11 +73,6 @@ downloadMeshes({
 ],
 }, DEFAULT_ATTRIB_ARRAYS, onLoad);
 
-textureFromUrl(renderer.gl_, 'checker.png', function(gl, texture) {
-  gl.activeTexture(gl.TEXTURE0);
-  gl.uniform1i(renderer.program_.set_uniform.u_diffuse_sampler, 0);
-  renderer.postRedisplay();
-});
 </script>
 
 </body></html>

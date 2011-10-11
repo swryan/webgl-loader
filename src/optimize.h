@@ -29,11 +29,16 @@ typedef std::vector<int> FaceList;
 // http://home.comcast.net/~tom_forsyth/papers/fast_vert_cache_opt.html
 class VertexOptimizer {
  public:
-  VertexOptimizer(const QuantizedAttribList& attribs, const IndexList& indices)
+  struct TriangleData {
+    bool active;  // true iff triangle has not been optimized and emitted.
+    // TODO: eliminate some wasted computation by using this cache.
+    // float score;
+  };
+
+  VertexOptimizer(const QuantizedAttribList& attribs)
       : attribs_(attribs),
-        indices_(indices),
         per_vertex_(attribs_.size() / 8),
-        per_tri_(indices_.size() / 3)
+        next_unused_index_(0)
   {
     // The cache has an extra slot allocated to simplify the logic in
     // InsertIndexToCache.
@@ -41,15 +46,27 @@ class VertexOptimizer {
       cache_[i] = kUnknownIndex;
     }
 
+    // Initialize per-vertex state.
+    for (size_t i = 0; i < per_vertex_.size(); ++i) {
+      VertexData& vertex_data = per_vertex_[i];
+      vertex_data.cache_tag = kCacheSize;
+      vertex_data.output_index = kMaxOutputIndex;
+    }
+  }
+
+  void AddTriangles(const int* indices, size_t length,
+                    WebGLMeshList* meshes) {
+    std::vector<TriangleData> per_tri(length / 3);
+
     // Loop through the triangles, updating vertex->face lists.
-    for (size_t i = 0; i < per_tri_.size(); ++i) {
-      //printf("%d %d %d\n", indices[i], indices[i+1], indices[i+2]);
-      per_tri_[i].active = true;
+    for (size_t i = 0; i < per_tri.size(); ++i) {
+      per_tri[i].active = true;
       per_vertex_[indices[3*i + 0]].faces.push_back(i);
       per_vertex_[indices[3*i + 1]].faces.push_back(i);
       per_vertex_[indices[3*i + 2]].faces.push_back(i);
     }
-    
+
+    // TODO: with index bounds, no need to recompute everything.
     // Compute initial vertex scores.
     for (size_t i = 0; i < per_vertex_.size(); ++i) {
       VertexData& vertex_data = per_vertex_[i];
@@ -57,30 +74,24 @@ class VertexOptimizer {
       vertex_data.output_index = kMaxOutputIndex;
       vertex_data.UpdateScore();
     }
-  }
 
-  void GetOptimizedMeshes(WebGLMeshList* meshes) {
-    meshes->push_back(WebGLMesh());
+    // Prepare output.
+    if (meshes->empty()) {
+      meshes->push_back(WebGLMesh());
+    }
     WebGLMesh* mesh = &meshes->back();
 
-    uint16 next_unused_index = 0;
-    // Consume indices_, one triangle at a time.
-    for (size_t c = 0; c < per_tri_.size(); ++c) {
-      const int best_triangle = FindBestTriangle();
-      per_tri_[best_triangle].active = false;
+    // Consume indices, one triangle at a time.
+    for (size_t c = 0; c < per_tri.size(); ++c) {
+      const int best_triangle = FindBestTriangle(indices, per_tri);
+      per_tri[best_triangle].active = false;
 
-      // Go through the indices of the best triangle.
+      // Iterate through triangle indices.
       for (size_t i = 0; i < 3; ++i) {
-        const int index = indices_[3*best_triangle + i];
+        const int index = indices[3*best_triangle + i];
         VertexData& vertex_data = per_vertex_[index];
-        // Remove the triangle from the vertex->face list. We are
-        // guaranteed to find it, so we can use a really simple loop.
-        // TODO: make this a function.
-        FaceList::iterator face = vertex_data.faces.begin();
-        while (*face != best_triangle) ++face;
-        *face = vertex_data.faces.back();
-        vertex_data.faces.pop_back();
-
+        vertex_data.RemoveFace(best_triangle);
+      
         InsertIndexToCache(index);
         const int cached_output_index = per_vertex_[index].output_index;
         // Have we seen this index before?
@@ -89,26 +100,26 @@ class VertexOptimizer {
           continue;
         }
         // The first time we see an index, not only do we increment
-        // next_index counter, but we must also copy the corresponding
-        // attributes.
-        // TODO: do quantization here?
-        per_vertex_[index].output_index = next_unused_index;
+        // next_unused_index_ counter, but we must also copy the
+        // corresponding attributes.  TODO: do quantization here?
+        per_vertex_[index].output_index = next_unused_index_;
         for (size_t j = 0; j < 8; ++j) {
           mesh->attribs.push_back(attribs_[8*index + j]);
         }
-        mesh->indices.push_back(next_unused_index++);
+        mesh->indices.push_back(next_unused_index_++);
       }
-      if (next_unused_index > kMaxOutputIndex - 3) {
-        // Might not be enough room for another triangle. Is it worth
-        // figuring out which other triangles can be added given the
-        // verties already added? Then, perhaps re-optimizing?
-        next_unused_index = 0;
+      // Check if there is room for another triangle.
+      if (next_unused_index_ > kMaxOutputIndex - 3) {
+        // Is it worth figuring out which other triangles can be added
+        // given the verties already added? Then, perhaps
+        // re-optimizing?
+        next_unused_index_ = 0;
         meshes->push_back(WebGLMesh());
         mesh = &meshes->back();
         for (size_t i = 0; i <= kCacheSize; ++i) {
           cache_[i] = kUnknownIndex;
         }
-        for (size_t i = 0; i <= per_vertex_.size(); ++i) {
+        for (size_t i = 0; i < per_vertex_.size(); ++i) {
           per_vertex_[i].output_index = kMaxOutputIndex;
         }
       }
@@ -148,8 +159,17 @@ class VertexOptimizer {
       // vert, so we get rid of lone verts quickly.
       const float kValenceBoostScale = 2.0f;
       const float kValenceBoostPower = 0.5f;
-      const float valence_boost = powf(active_tris, -kValenceBoostPower);  // rsqrt?
+      // rsqrt?
+      const float valence_boost = powf(active_tris, -kValenceBoostPower);
       score += valence_boost * kValenceBoostScale;
+    }
+
+    // TODO: this assumes that "tri" is in the list!
+    void RemoveFace(int tri) {
+      FaceList::iterator face = faces.begin();
+      while (*face != tri) ++face;
+      *face = faces.back();
+      faces.pop_back();
     }
 
     FaceList faces;
@@ -158,7 +178,8 @@ class VertexOptimizer {
     uint16 output_index;
   };
 
-  int FindBestTriangle() {
+  int FindBestTriangle(const int* indices,
+                       const std::vector<TriangleData>& per_tri) {
     float best_score = -HUGE_VALF;
     int best_triangle = -1;
 
@@ -174,11 +195,11 @@ class VertexOptimizer {
       const VertexData& vertex_data = per_vertex_[cache_[i]];
       for (size_t j = 0; j < vertex_data.faces.size(); ++j) {
         const int tri_index = vertex_data.faces[j];
-        if (per_tri_[tri_index].active) {
+        if (per_tri[tri_index].active) {
           const float score =
-              per_vertex_[indices_[3*tri_index + 0]].score +
-              per_vertex_[indices_[3*tri_index + 1]].score +
-              per_vertex_[indices_[3*tri_index + 2]].score;
+              per_vertex_[indices[3*tri_index + 0]].score +
+              per_vertex_[indices[3*tri_index + 1]].score +
+              per_vertex_[indices[3*tri_index + 2]].score;
           if (score > best_score) {
             best_score = score;
             best_triangle = tri_index;
@@ -192,12 +213,12 @@ class VertexOptimizer {
       // If no triangles can be found through the cache (e.g. for the
       // first triangle) go through all the active triangles and find
       // the best one.
-      for (size_t i = 0; i < per_tri_.size(); ++i) {
-        if (per_tri_[i].active) {
+      for (size_t i = 0; i < per_tri.size(); ++i) {
+        if (per_tri[i].active) {
           const float score =
-              per_vertex_[indices_[3*i + 0]].score +
-              per_vertex_[indices_[3*i + 1]].score +
-              per_vertex_[indices_[3*i + 2]].score;
+              per_vertex_[indices[3*i + 0]].score +
+              per_vertex_[indices[3*i + 1]].score +
+              per_vertex_[indices[3*i + 2]].score;
           if (score > best_score) {
             best_score = score;
             best_triangle = i;
@@ -208,12 +229,6 @@ class VertexOptimizer {
     }
     return best_triangle;
   }
-
-  struct TriangleData {
-    bool active;  // true iff triangle has not been optimized and emitted.
-    // TODO: eliminate some wasted computation by using this cache.
-    // float score;
-  };
 
   // TODO: faster to update an entire triangle.
   // This also updates the vertex scores!
@@ -250,10 +265,9 @@ class VertexOptimizer {
   }
 
   const QuantizedAttribList& attribs_;
-  const IndexList& indices_;
   std::vector<VertexData> per_vertex_;
-  std::vector<TriangleData> per_tri_;
   int cache_[kCacheSize + 1];
+  uint16 next_unused_index_;
 };
 
 #endif  // WEBGL_LOADER_OPTIMIZE_H_

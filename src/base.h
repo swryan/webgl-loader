@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <string>
 #include <vector>
 
 typedef unsigned short uint16;
@@ -51,18 +52,35 @@ static inline int strtoint(const char* str, const char** endptr) {
   return static_cast<int>(strtol(str, const_cast<char**>(endptr), 10));
 }
 
-static inline const char* stripLeadingWhitespace(const char* str) {
+static inline const char* StripLeadingWhitespace(const char* str) {
   while (isspace(*str)) {
     ++str;
   }
   return str;
 }
 
-static inline void terminateAtNewline(const char* str) {
-  char* newline = strpbrk(str, "\r\n");
+static inline void TerminateAtNewlineOrComment(const char* str) {
+  char* newline = strpbrk(str, "#\r\n");
   if (newline) {
     *newline = '\0';
   }
+}
+
+static inline const char* ConsumeFirstToken(const char* const line,
+                                            std::string* token) {
+  const char* curr = line;
+  while (char ch = *curr) {
+    if (isspace(ch)) {
+      token->assign(line, curr);
+      return curr + 1;
+    }
+    ++curr;
+  }
+  if (curr == line) {
+    return NULL;
+  }
+  token->assign(line, curr);
+  return curr;
 }
 
 // Jenkin's One-at-a-time Hash. Not the best, but simple and
@@ -89,6 +107,10 @@ void ToHex(uint32 w, char out[9]) {
     out[--i] = bits + ((bits < 10) ? kOffset0 : kOffset10);
     w >>= 4;
   }
+}
+
+uint16 Quantize(float f, float in_min, float in_scale, uint16 out_max) {
+  return static_cast<uint16>(out_max * ((f-in_min) / in_scale));
 }
 
 // TODO: Visual Studio calls this someting different.

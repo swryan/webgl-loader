@@ -31,30 +31,44 @@ int main(int argc, const char* argv[]) {
   FILE* fp = fopen(argv[1], "r");
   WavefrontObjFile obj(fp);
   fclose(fp);
-  const TextureBatches& batches = obj.texture_batches();
+
+  puts("{");
+  const MaterialList& materials = obj.materials();
+  for (size_t i = 0; i < materials.size(); ++i) {
+    materials[i].DumpJson();
+  }
+  puts("};");
+  
+  const MaterialBatches& batches = obj.material_batches();
 
   // Pass 1: compute bounds.
   Bounds bounds;
   bounds.Clear();
-  for (TextureBatches::const_iterator iter = batches.begin();
+  for (MaterialBatches::const_iterator iter = batches.begin();
        iter != batches.end(); ++iter) {
-    bounds.Enclose(iter->second.draw_mesh().attribs);
+    const DrawBatch& draw_batch = iter->second;
+    bounds.Enclose(draw_batch.draw_mesh().attribs);
   }
-  std::vector<char> utf8;
   BoundsParams bounds_params = BoundsParams::FromBounds(bounds);
   bounds_params.DumpJson();
+
+  std::vector<char> utf8;
   // Pass 2: quantize, optimize, compress, report.
-  for (TextureBatches::const_iterator iter = batches.begin();
+  for (MaterialBatches::const_iterator iter = batches.begin();
        iter != batches.end(); ++iter) {
     size_t offset = 0;
     utf8.clear();
     const DrawMesh& draw_mesh = iter->second.draw_mesh();
+    if (draw_mesh.indices.empty()) continue;
+    
     QuantizedAttribList quantized_attribs;
     AttribsToQuantizedAttribs(draw_mesh.attribs, bounds_params,
                               &quantized_attribs);
-    VertexOptimizer vertex_optimizer(quantized_attribs, draw_mesh.indices);
+    VertexOptimizer vertex_optimizer(quantized_attribs);
     WebGLMeshList webgl_meshes;
-    vertex_optimizer.GetOptimizedMeshes(&webgl_meshes);
+    vertex_optimizer.AddTriangles(&draw_mesh.indices[0],
+                                  draw_mesh.indices.size(),
+                                  &webgl_meshes);
     std::vector<std::string> material;
     std::vector<size_t> attrib_start, attrib_length, index_start, index_length;
     for (size_t i = 0; i < webgl_meshes.size(); ++i) {

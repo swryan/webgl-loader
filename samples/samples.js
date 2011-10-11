@@ -54,10 +54,29 @@ addWheelHandler(window, function(dx, dy, evt) {
   return false;
 });
 
+function textureFromMaterial(gl, material, callback) {
+  try {
+    var url = MATERIALS[material].map_Kd;  // throw-y.
+    if (url === undefined) {
+      throw url;
+    }
+    return textureFromUrl(gl, url, callback);
+  } catch (e) {
+    var color;
+    try {
+      color = new Uint8Array(MATERIALS[material].Kd);
+    } catch (e) {
+      color = new Uint8Array([255, 255, 255]);
+    }
+    // TODO: callback!
+    return textureFromArray(gl, 1, 1, color);
+  }
+}
+
 function onLoad(attribArray, indexArray, meshEntry) {
   renderer.meshes_.push(
     new Mesh(gl, attribArray, indexArray, DEFAULT_ATTRIB_ARRAYS,
-             textureFromUrl(gl, meshEntry.material, function() {
+             textureFromMaterial(gl, meshEntry.material, function() {
                renderer.postRedisplay();
              })));
   renderer.postRedisplay();
