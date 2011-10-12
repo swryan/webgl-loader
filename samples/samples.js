@@ -78,15 +78,7 @@ function onLoad(attribArray, indexArray, meshEntry) {
   var texture = textureFromMaterial(gl, meshEntry.material, function() {
     renderer.postRedisplay();
   });
-  // TODO: canonicalize in pipeline!
-  var names = [];
-  if (meshEntry.names) {
-    var numNames = meshEntry.names.length;
-    for (var i = 0; i < numNames; ++i) {
-      names[i] = meshEntry.names[i].toLowerCase();
-    }
-  }
   var mesh = new Mesh(gl, attribArray, indexArray, DEFAULT_ATTRIB_ARRAYS,
-                      texture, names, meshEntry.lengths);
+                      texture, meshEntry.names, meshEntry.lengths);
   renderer.meshes_.push(mesh);
 }

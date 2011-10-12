@@ -78,6 +78,8 @@ int main(int argc, const char* argv[]) {
     }
     const size_t here = group_starts.back().offset;
     const size_t length = draw_mesh.indices.size() - here;
+    const bool divisible_by_3 = length % 3 == 0;
+    CHECK(divisible_by_3);
     group_lengths.push_back(length);
     vertex_optimizer.AddTriangles(&draw_mesh.indices[here], length,
                                   &webgl_meshes);

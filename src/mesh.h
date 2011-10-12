@@ -399,7 +399,7 @@ class WavefrontMtlFile {
   void ParseNewmtl(const char* line, unsigned int line_num) {
     materials_.push_back(Material());
     current_ = &materials_.back();
-    current_->name = StripLeadingWhitespace(line);
+    ToLower(StripLeadingWhitespace(line), &current_->name);
   }
 
   Material* current_;
@@ -622,6 +622,7 @@ class WavefrontObjFile {
   void ParseGroup(const char* line, unsigned int line_num) {
     std::string token;
     while ((line = ConsumeFirstToken(line, &token))) {
+      ToLowerInplace(&token);
       group_counts_[token]++;
       line_to_groups_.insert(std::make_pair(line_num, token));
     }
@@ -652,7 +653,8 @@ class WavefrontObjFile {
   }
 
   void ParseUsemtl(const char* line, unsigned int line_num) {
-    const std::string& usemtl = StripLeadingWhitespace(line);    
+    std::string usemtl;
+    ToLower(StripLeadingWhitespace(line), &usemtl); 
     MaterialBatches::iterator iter = material_batches_.find(usemtl);
     if (iter == material_batches_.end()) {
       ErrorLine("material not found", line_num);

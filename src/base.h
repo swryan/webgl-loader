@@ -14,6 +14,7 @@
 #ifndef WEBGL_LOADER_BASE_H_
 #define WEBGL_LOADER_BASE_H_
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -93,6 +94,20 @@ static inline const char* ConsumeFirstToken(const char* const line,
   }
   token->assign(line, curr);
   return curr;
+}
+
+static inline void ToLower(const char* in, std::string* out) {
+  while (char ch = *in) {
+    out->push_back(tolower(ch));
+    ++in;
+  }
+}
+
+static inline void ToLowerInplace(std::string* in) {
+  std::string& s = *in;
+  for (size_t i = 0; i < s.size(); ++i) {
+    s[i] = tolower(s[i]);    
+  }
 }
 
 // Jenkin's One-at-a-time Hash. Not the best, but simple and
