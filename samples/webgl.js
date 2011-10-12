@@ -142,27 +142,37 @@ function textureFromUrl(gl, url, opt_callback) {
   return texture;
 }
 
-function meshBufferData(gl, attribArray, indexArray) {
+function attribBufferData(gl, attribArray) {
   var attribBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, attribBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, attribArray, gl.STATIC_DRAW);
+  return attribBuffer;
+}
 
+function indexBufferData(gl, indexArray) {
   var indexBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indexArray, gl.STATIC_DRAW);
-
-  return [attribBuffer, indexBuffer];
+  return indexBuffer;
 }
 
-function Mesh(gl, attribArray, indexArray, attribArrays, texture) {
+function Mesh(gl, attribArray, indexArray, attribArrays, texture, opt_lengths) {
   this.gl_ = gl;
-  this.attribArrays_ = attribArrays;  // TODO: better name!
+  this.attribArrays_ = attribArrays;  // TODO: rename to vertex format!
   this.numIndices_ = indexArray.length;
   this.texture_ = texture || null;
 
-  var buffers = meshBufferData(gl, attribArray, indexArray);
-  this.vbo_ = buffers[0];
-  this.ibo_ = buffers[1];
+  this.vbo_ = attribBufferData(gl, attribArray);
+  this.ibo_ = indexBufferData(gl, indexArray);
+
+  this.lengths_ = opt_lengths || [];
+  this.starts_ = [];
+  var numLengths = this.lengths_.length;
+  var start = 0;
+  for (var i = 0; i < numLengths; ++i) {
+    this.starts_[i] = start;
+    start += this.lengths_[i];
+  }
 }
 
 Mesh.prototype.bindAndDraw = function(program) {

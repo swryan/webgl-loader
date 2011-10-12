@@ -68,16 +68,31 @@ function textureFromMaterial(gl, material, callback) {
     } catch (e) {
       color = new Uint8Array([255, 255, 255]);
     }
-    // TODO: callback!
-    return textureFromArray(gl, 1, 1, color);
+    var texture = textureFromArray(gl, 1, 1, color);
+    callback(gl, texture);
+    return texture;
   }
 }
 
+var IDS = {};
+
 function onLoad(attribArray, indexArray, meshEntry) {
-  renderer.meshes_.push(
-    new Mesh(gl, attribArray, indexArray, DEFAULT_ATTRIB_ARRAYS,
-             textureFromMaterial(gl, meshEntry.material, function() {
-               renderer.postRedisplay();
-             })));
-  renderer.postRedisplay();
+  var texture = textureFromMaterial(gl, meshEntry.material, function() {
+    renderer.postRedisplay();
+  });
+  var mesh = new Mesh(gl, attribArray, indexArray, DEFAULT_ATTRIB_ARRAYS,
+                      texture, meshEntry.lengths);
+  renderer.meshes_.push(mesh);
+  
+  var names = meshEntry.names || [];
+
+  var numNames = names.length;
+  for (var i = 0; i < numNames; ++i) {
+    var name = names[i];
+    if (IDS.hasOwnProperty(name)) {
+      IDS[name].push(mesh, i);
+    } else {
+      IDS[name] = [mesh, i];
+    }
+  }
 }

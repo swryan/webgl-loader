@@ -8,7 +8,7 @@
 //     decodeScales: [ ... ],
 //   },
 //   urls: {
-//     url: [
+//     'url': [
 //       { material: 'material_name',
 //         attribRange: [#, #],
 //         indexRange: [#, #],
@@ -133,3 +133,4 @@ function downloadModel(model, callback) {
   var model = MODELS[model];
   downloadMeshes(model.urls, model.decodeParams, callback);
 }
+
