@@ -156,7 +156,20 @@ function indexBufferData(gl, indexArray) {
   return indexBuffer;
 }
 
-function Mesh(gl, attribArray, indexArray, attribArrays, texture, opt_lengths) {
+function addToDisplayList(displayList, begin, end) {
+  var back = displayList.length - 1;
+  var lastEnd = displayList[back];
+  if (begin === lastEnd) {
+    displayList[back] = end;
+  } else {
+    displayList.push(begin, end);
+  }
+}
+
+// TODO: names/lengths don't really belong here; they probably belong
+// with the displayList stuff.
+function Mesh(gl, attribArray, indexArray, attribArrays, texture, 
+              opt_names, opt_lengths) {
   this.gl_ = gl;
   this.attribArrays_ = attribArrays;  // TODO: rename to vertex format!
   this.numIndices_ = indexArray.length;
@@ -165,6 +178,7 @@ function Mesh(gl, attribArray, indexArray, attribArrays, texture, opt_lengths) {
   this.vbo_ = attribBufferData(gl, attribArray);
   this.ibo_ = indexBufferData(gl, indexArray);
 
+  this.names_ = opt_names || [];
   this.lengths_ = opt_lengths || [];
   this.starts_ = [];
   var numLengths = this.lengths_.length;
@@ -175,13 +189,33 @@ function Mesh(gl, attribArray, indexArray, attribArrays, texture, opt_lengths) {
   }
 }
 
-Mesh.prototype.bindAndDraw = function(program) {
+Mesh.prototype.bind = function(program) {
   var gl = this.gl_;
-
   gl.bindTexture(gl.TEXTURE_2D, this.texture_);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo_);
   gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo_);
   program.vertexAttribPointers(this.attribArrays_);
+};
 
-  gl.drawElements(gl.TRIANGLES, this.numIndices_, gl.UNSIGNED_SHORT, 0);
+Mesh.prototype.draw = function(opt_length, opt_offset) {
+  if (opt_length === 0) return
+
+  opt_length = opt_length || this.numIndices_;
+  opt_offset = opt_offset || 0;
+  var gl = this.gl_;
+  gl.drawElements(gl.TRIANGLES, opt_length, gl.UNSIGNED_SHORT, 2*opt_offset);
+};
+
+Mesh.prototype.drawList = function(displayList) {
+  var numDraws = displayList.length;
+  for (var i = 0; i < numDraws; i += 2) {
+    var drawStart = displayList[i];
+    var drawLength = displayList[i+1] - drawStart;
+    this.draw(drawLength, drawStart);
+  }
+};
+
+Mesh.prototype.bindAndDraw = function(program) {
+  this.bind(program);
+  this.draw();
 };

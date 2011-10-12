@@ -64,7 +64,7 @@ function addDragHandler(dom, drag) {
 
 // wheel(dx, dy, evt)
 function addWheelHandler(dom, wheel) {
-  if (typeof dom.onmousewheel !== 'undefined') {
+  if (dom.onmousewheel !== undefined) {
     dom.addEventListener('mousewheel', function(evt) {
       if (typeof evt.wheelDeltaX !== 'undefined') {
         wheel(evt.wheelDeltaX, evt.wheelDeltaY, evt);
@@ -91,7 +91,7 @@ window.requestAnimFrame = window.requestAnimationFrame ||
   window.mozRequestAnimationFrame ||
   window.oRequestAnimationFrame || 
   window.msRequestAnimationFrame || 
-  function(callback, dom_unused) {
+  function(callback, unused_dom) {
     window.setTimeout(callback, 16);  // 16ms ~ 60Hz
   };
 
