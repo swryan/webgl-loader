@@ -47,7 +47,7 @@ load : function(gl)
   program.enableVertexAttribArrays(BUDDHA_ATTRIB_ARRAYS);
 
   var meshes = [];
-  downloadMeshes({
+  downloadMeshes('', {
     "happy.utf8": [
       { material: "",
         attribRange: [0, 55294],
