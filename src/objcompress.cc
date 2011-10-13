@@ -111,10 +111,12 @@ int main(int argc, const char* argv[]) {
       printf("      { material: \'%s\',\n"
              "        attribRange: [%zu, %zu],\n"
              "        indexRange: [%zu, %zu],\n"
+             "        bboxes: %zu,\n"
              "        names: [",
              material[i].c_str(),
              attrib_start[i], attrib_length[i],
-             index_start[i], index_length[i]);
+             index_start[i], index_length[i],
+             offset);
       std::vector<size_t> buffered_lengths;
       size_t group_start = 0;
       while (group_index < group_lengths.size()) {
@@ -123,6 +125,12 @@ int main(int argc, const char* argv[]) {
         const size_t group_length = group_lengths[group_index];
         const size_t next_start = group_start + group_length;
         const size_t webgl_index_length = webgl_meshes[i].indices.size();
+        // TODO: bbox info is better placed at the head of the file,
+        // perhaps transposed. Also, when a group gets split between
+        // batches, the bbox gets stored twice.
+        CompressAABBToUtf8(group_starts[group_index].bounds,
+                           bounds_params, &utf8);
+        offset += 6;
         if (next_start < webgl_index_length) {
           buffered_lengths.push_back(group_length);
           group_start = next_start;

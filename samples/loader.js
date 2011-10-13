@@ -39,6 +39,19 @@ var DEFAULT_ATTRIB_ARRAYS = [
   }
 ];
 
+var BBOX_ATTRIB_ARRAYS = [
+  { name: "a_position",
+    size: 3,
+    stride: 6,
+    offset: 0
+  }, 
+  { name: "a_radius",
+    size: 3,
+    stride: 6,
+    offset: 3
+  }
+];
+
 var DEFAULT_DECODE_PARAMS = {
   decodeOffsets: [-4095, -4095, -4095, 0, 0, -511, -511, -511],
   decodeScales: [1/8191, 1/8191, 1/8191, 1/1023, 1/1023, 1/1023, 1/1023, 1/1023]
@@ -71,16 +84,37 @@ function decompressIndices_(str, inputStart, numIndices,
   }
 }
 
-function decompressMeshes(str, meshRanges, decodeParams) {
+function decompressAABBs_(str, inputStart, numBBoxen,
+                          decodeOffsets, decodeScales) {
+  var numFloats = 6 * numBBoxen;
+  var inputEnd = inputStart + numFloats;
+  var bboxen = new Float32Array(numFloats);
+  var outputStart = 0;
+  for (var i = inputStart; i < inputEnd; i += 6) {
+    var minX = str.charCodeAt(i + 0) + decodeOffsets[0];
+    var minY = str.charCodeAt(i + 1) + decodeOffsets[1];
+    var minZ = str.charCodeAt(i + 2) + decodeOffsets[2];
+    var radiusX = (str.charCodeAt(i + 3) + 1) >> 1;
+    var radiusY = (str.charCodeAt(i + 4) + 1) >> 1;
+    var radiusZ = (str.charCodeAt(i + 5) + 1) >> 1;
+    bboxen[outputStart++] = decodeScales[0] * (minX + radiusX);
+    bboxen[outputStart++] = decodeScales[1] * (minY + radiusY);
+    bboxen[outputStart++] = decodeScales[2] * (minZ + radiusZ);
+    bboxen[outputStart++] = decodeScales[0] * radiusX;
+    bboxen[outputStart++] = decodeScales[1] * radiusY;
+    bboxen[outputStart++] = decodeScales[2] * radiusZ;
+  }
+  return bboxen;
+}
+
+function decompressMeshes(str, meshEntry, decodeParams, callback) {
   // Extract conversion parameters from attribArrays.
   var stride = decodeParams.decodeScales.length;
   var decodeOffsets = decodeParams.decodeOffsets;
   var decodeScales = decodeParams.decodeScales;
-
-  var meshes = [];
-  var numMeshes = meshRanges.length;
+  var numMeshes = meshEntry.length;
   for (var i = 0; i < numMeshes; i++) {
-    var meshParams = meshRanges[i];
+    var meshParams = meshEntry[i];
     var attribStart = meshParams.attribRange[0];
     var numVerts = meshParams.attribRange[1];
 
@@ -104,25 +138,29 @@ function decompressMeshes(str, meshRanges, decodeParams) {
     var numIndices = 3*meshParams.indexRange[1];
     var indicesOut = new Uint16Array(numIndices);
     decompressIndices_(str, inputOffset, numIndices, indicesOut, 0);
-    meshes.push([attribsOut, indicesOut]);
-  }
 
-  return meshes;
+    // Decode bboxen.
+    var bboxen = undefined;
+    var bboxOffset = meshParams.bboxes;
+    if (bboxOffset) {
+      bboxen = decompressAABBs_(str, bboxOffset, meshParams.names.length,
+                                decodeOffsets, decodeScales);
+    }
+    callback(attribsOut, indicesOut, bboxen, i);
+  }
 }
 
 function downloadMeshes(meshUrlMap, decodeParams, callback) {
   // TODO: Needs an Object.forEach or somesuch.
   for (var url in meshUrlMap) {
     var meshEntry = meshUrlMap[url];
-    getHttpRequest(url, (function(meshEntry) {
+    getHttpRequest(url, (function(meshEntry) { 
       return function(xhr) {
         if (xhr.status === 200 || xhr.status === 0) {
-          var meshes = decompressMeshes(xhr.responseText,
-                                        meshEntry, decodeParams);
-          var numMeshes = meshes.length;
-          for (var i = 0; i < numMeshes; i++) {
-            callback(meshes[i][0], meshes[i][1], meshEntry[i]);
-          }
+          decompressMeshes(xhr.responseText, meshEntry, decodeParams,
+                           function(attribs, indices, bboxen, i) {
+                             callback(attribs, indices, bboxen, meshEntry[i]);
+                           });
         }  // TODO: handle errors.
       };
     })(meshUrlMap[url]));
@@ -133,4 +171,3 @@ function downloadModel(model, callback) {
   var model = MODELS[model];
   downloadMeshes(model.urls, model.decodeParams, callback);
 }
-

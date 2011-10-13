@@ -74,11 +74,11 @@ function textureFromMaterial(gl, material, callback) {
   }
 }
 
-function onLoad(attribArray, indexArray, meshEntry) {
+function onLoad(attribArray, indexArray, bboxen, meshEntry) {
   var texture = textureFromMaterial(gl, meshEntry.material, function() {
     renderer.postRedisplay();
   });
   var mesh = new Mesh(gl, attribArray, indexArray, DEFAULT_ATTRIB_ARRAYS,
-                      texture, meshEntry.names, meshEntry.lengths);
+                      texture, meshEntry.names, meshEntry.lengths, bboxen);
   renderer.meshes_.push(mesh);
 }

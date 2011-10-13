@@ -16,6 +16,7 @@
 #define WEBGL_LOADER_MESH_H_
 
 #include <float.h>
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -233,9 +234,50 @@ static inline size_t positionDim() { return 3; }
 static inline size_t texcoordDim() { return 2; }
 static inline size_t normalDim() { return 3; }
 
+struct Bounds {
+  float mins[8];
+  float maxes[8];
+
+  void Clear() {
+    for (size_t i = 0; i < 8; ++i) {
+      mins[i] = FLT_MAX;
+      maxes[i] = -FLT_MAX;
+    }
+  }
+
+  void EncloseAttrib(const float* attribs) {
+    for (size_t i = 0; i < 8; ++i) {
+      const float attrib = attribs[i];
+      if (mins[i] > attrib) {
+        mins[i] = attrib;
+      }
+      if (maxes[i] < attrib) {
+        maxes[i] = attrib;
+      }
+    }
+  }
+
+  void Enclose(const AttribList& attribs) {
+    for (size_t i = 0; i < attribs.size(); i += 8) {
+      EncloseAttrib(&attribs[i]);
+    }
+  }
+
+  float UniformScale() const {
+    const float x = maxes[0] - mins[0];
+    const float y = maxes[1] - mins[1];
+    const float z = maxes[2] - mins[2];
+    return (x > y)  // TODO: max3
+        ? ((x > z) ? x : z)
+        : ((y > z) ? y : z);
+  }
+};
+
 struct GroupStart {
   size_t offset;  // offset into draw_mesh_.indices.
   unsigned int group_line;
+  int min_index, max_index;  // range into attribs.
+  Bounds bounds;
 };
 
 class DrawBatch {
@@ -262,8 +304,11 @@ class DrawBatch {
       GroupStart group_start;
       group_start.offset = draw_mesh_.indices.size();
       group_start.group_line = group_line;
+      group_start.min_index = INT_MAX;
+      group_start.max_index = INT_MIN;
       group_starts_.push_back(group_start);
     }
+    GroupStart& group = group_starts_.back();
     for (size_t i = 0; i < 9; i += 3) {
       // .OBJ files use 1-based indexing.
       const int position_index = indices[i + 0] - 1;
@@ -271,8 +316,20 @@ class DrawBatch {
       const int normal_index = indices[i + 2] - 1;
       const std::pair<int, bool> flattened = flattener_.GetFlattenedIndex(
           position_index, texcoord_index, normal_index);
-      draw_mesh_.indices.push_back(flattened.first);
+      const int flat_index = flattened.first;
+      CHECK(flat_index >= 0);
+      draw_mesh_.indices.push_back(flat_index);
       if (flattened.second) {
+        // This is a new index. Keep track of index ranges and vertex
+        // bounds.
+        if (flat_index > group.max_index) {
+          group.max_index = flat_index;
+        }
+        if (flat_index < group.min_index) {
+          group.min_index = flat_index;
+        }
+        const size_t new_loc = draw_mesh_.attribs.size();
+        CHECK(8*size_t(flat_index) == new_loc);
         for (size_t i = 0; i < positionDim(); ++i) {
           draw_mesh_.attribs.push_back(
               positions_->at(positionDim() * position_index + i));
@@ -297,6 +354,8 @@ class DrawBatch {
                 normals_->at(normalDim() * normal_index + i));
           }
         }
+        // TODO: is the covariance body useful for anything?
+        group.bounds.EncloseAttrib(&draw_mesh_.attribs[new_loc]);
       }
     }
   }
@@ -454,7 +513,7 @@ class WavefrontObjFile {
            positions_.size(), texcoords_.size(), normals_.size());
   }
  private:
-  WavefrontObjFile() { } // For testing.
+  WavefrontObjFile() { }  // For testing.
 
   void ParseFile(FILE* fp) {
     // TODO: don't use a fixed-size buffer.
@@ -686,47 +745,11 @@ class WavefrontObjFile {
   unsigned int current_group_line_;
 };
 
-struct Bounds {
-  float mins[8];
-  float maxes[8];
-
-  void Clear() {
-    for (size_t i = 0; i < 8; ++i) {
-      mins[i] = FLT_MAX;
-      maxes[i] = -FLT_MAX;
-    }
-  }
-
-  void Enclose(const AttribList& attribs) {
-    for (size_t i = 0; i < attribs.size(); i += 8) {
-      for (size_t j = 0; j < 8; ++j) {
-        const float attrib = attribs[i + j];
-        if (mins[j] > attrib) {
-          mins[j] = attrib;
-        }
-        if (maxes[j] < attrib) {
-          maxes[j] = attrib;
-        }
-      }
-    }
-  }
-};
-
-float UniformScaleFromBounds(const Bounds& bounds) {
-  const float x = bounds.maxes[0] - bounds.mins[0];
-  const float y = bounds.maxes[1] - bounds.mins[1];
-  const float z = bounds.maxes[2] - bounds.mins[2];
-  return (x > y)
-      ? ((x > z) ? x : z)
-      : ((y > z) ? y : z);
-}
-
-// -1, -1, 2, 30 => -10   
-
+// TODO: make maxPosition et. al. configurable.
 struct BoundsParams {
   static BoundsParams FromBounds(const Bounds& bounds) {
     BoundsParams ret;
-    const float scale = UniformScaleFromBounds(bounds);
+    const float scale = bounds.UniformScale();
     // Position. Use a uniform scale.
     for (size_t i = 0; i < 3; ++i) {
       const int maxPosition = (1 << 14) - 1;  // 16383;
@@ -795,6 +818,26 @@ uint16 ZigZag(int16 word) {
   return (word >> 15) ^ (word << 1);
 }
 
+void CompressAABBToUtf8(const Bounds& bounds,
+                        const BoundsParams& total_bounds,
+                        std::vector<char>* utf8) {
+  const int maxPosition = (1 << 14) - 1;  // 16383;
+  uint16 mins[3] = { 0 };
+  uint16 maxes[3] = { 0 };
+  for (int i = 0; i < 3; ++i) {
+    float total_min = total_bounds.mins[i];
+    float total_scale = total_bounds.scales[i];
+    mins[i] = Quantize(bounds.mins[i], total_min, total_scale, maxPosition);
+    maxes[i] = Quantize(bounds.maxes[i], total_min, total_scale, maxPosition);
+  }
+  for (int i = 0; i < 3; ++i) {
+    Uint16ToUtf8(mins[i], utf8);
+  }
+  for (int i = 0; i < 3; ++i) {
+    Uint16ToUtf8(maxes[i] - mins[i], utf8);
+  }
+}
+
 void CompressIndicesToUtf8(const OptimizedIndexList& list,
                            std::vector<char>* utf8) {
   // For indices, we don't do delta from the most recent index, but
@@ -826,23 +869,6 @@ void CompressQuantizedAttribsToUtf8(const QuantizedAttribList& attribs,
       CHECK(Uint16ToUtf8(za, utf8));
     }     
   }
-}
-
-void CompressSimpleMeshToFile(const QuantizedAttribList& attribs,
-                              const OptimizedIndexList& indices,
-                              const char* fn) {
-  CHECK((attribs.size() & 7) == 0);
-  const size_t num_verts = attribs.size() / 8;
-  CHECK(num_verts > 0);
-  CHECK(num_verts < 65536);
-  std::vector<char> utf8;
-  CHECK(Uint16ToUtf8(static_cast<uint16>(num_verts - 1), &utf8));
-  CompressQuantizedAttribsToUtf8(attribs, &utf8);
-  CompressIndicesToUtf8(indices, &utf8);
-
-  FILE* fp = fopen(fn, "wb");
-  fwrite(&utf8[0], 1, utf8.size(), fp);
-  fclose(fp);
 }
 
 #endif  // WEBGL_LOADER_MESH_H_

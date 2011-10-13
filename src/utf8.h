@@ -34,7 +34,6 @@ bool Uint16ToUtf8(uint16 word, std::vector<char>* utf8) {
   } else if (word < 0xF800) {
     // We can only encode 65535 - 2048 values because of illegal UTF-8
     // characters, such as surrogate pairs in [0xD800, 0xDFFF].
-    //TODO: what about other characters, like reversed-BOM 0xFFFE?
     if (word >= 0xD800) {
       // Shift the result to avoid the surrogate pair range.
       word += 0x0800;

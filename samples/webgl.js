@@ -23,11 +23,11 @@ function Shader(gl, source, shaderType) {
 }
 
 Shader.prototype.info = function() {
-  return this.gl.getShaderParameter(this.handle_, this.gl.INFO_LOG);
+  return this.gl_.getShaderInfoLog(this.handle_);
 }
 
 Shader.prototype.type = function() {
-  return this.gl.getShaderParameter(this.handle_, this.gl.SHADER_TYPE);
+  return this.gl_.getShaderParameter(this.handle_, this.gl_.SHADER_TYPE);
 }
 
 function vertexShader(gl, source) {
@@ -87,6 +87,17 @@ Program.prototype.enableVertexAttribArrays = function(attribArrays) {
     var loc = this.set_attrib[params.name];
     if (loc !== undefined) {
       this.gl_.enableVertexAttribArray(loc);
+    }
+  }
+};
+
+Program.prototype.disableVertexAttribArrays = function(attribArrays) {
+  var numAttribs = attribArrays.length;
+  for (var i = 0; i < numAttribs; ++i) {
+    var params = attribArrays[i];
+    var loc = this.set_attrib[params.name];
+    if (loc !== undefined) {
+      this.gl_.disableVertexAttribArray(loc);
     }
   }
 };
@@ -169,18 +180,22 @@ function addToDisplayList(displayList, begin, end) {
 // TODO: names/lengths don't really belong here; they probably belong
 // with the displayList stuff.
 function Mesh(gl, attribArray, indexArray, attribArrays, texture, 
-              opt_names, opt_lengths) {
+              opt_names, opt_lengths, opt_bboxen) {
   this.gl_ = gl;
   this.attribArrays_ = attribArrays;  // TODO: rename to vertex format!
   this.numIndices_ = indexArray.length;
   this.texture_ = texture || null;
+
+  if (opt_bboxen) {
+    this.bboxen_ = attribBufferData(gl, opt_bboxen);
+  }
 
   this.vbo_ = attribBufferData(gl, attribArray);
   this.ibo_ = indexBufferData(gl, indexArray);
 
   this.names_ = opt_names || [];
   this.lengths_ = opt_lengths || [];
-  this.starts_ = [];
+  this.starts_ = [];  // TODO: typed array?
   var numLengths = this.lengths_.length;
   var start = 0;
   for (var i = 0; i < numLengths; ++i) {
