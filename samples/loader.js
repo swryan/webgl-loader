@@ -150,11 +150,11 @@ function decompressMeshes(str, meshEntry, decodeParams, callback) {
   }
 }
 
-function downloadMeshes(meshUrlMap, decodeParams, callback) {
+function downloadMeshes(path, meshUrlMap, decodeParams, callback) {
   // TODO: Needs an Object.forEach or somesuch.
   for (var url in meshUrlMap) {
     var meshEntry = meshUrlMap[url];
-    getHttpRequest(url, (function(meshEntry) { 
+    getHttpRequest(path + url, (function(meshEntry) { 
       return function(xhr) {
         if (xhr.status === 200 || xhr.status === 0) {
           decompressMeshes(xhr.responseText, meshEntry, decodeParams,
@@ -167,7 +167,7 @@ function downloadMeshes(meshUrlMap, decodeParams, callback) {
   }
 }
 
-function downloadModel(model, callback) {
+function downloadModel(path, model, callback) {
   var model = MODELS[model];
-  downloadMeshes(model.urls, model.decodeParams, callback);
+  downloadMeshes(path, model.urls, model.decodeParams, callback);
 }

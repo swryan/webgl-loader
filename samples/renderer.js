@@ -19,6 +19,7 @@ function Renderer(canvas) {
 
   // Resize.
   function onWindowResize_() {
+    // Move this to draw_!
     var canvas = self.canvas_;
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
@@ -55,6 +56,7 @@ Renderer.prototype.drawLists_ = function(displayLists) {
 Renderer.prototype.draw_ = function() {
   var gl = this.gl_;
   var canvas = this.canvas_;
+
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
   var fudge = .01;  // TODO: tighter z-fitting.
   var aspectRatio = fudge*canvas.clientWidth/canvas.clientHeight;

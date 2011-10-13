@@ -103,6 +103,7 @@ int main(int argc, const char* argv[]) {
     const uint32 hash = SimpleHash(&utf8[0], utf8.size());
     char buf[9] = { '\0' };
     ToHex(hash, buf);
+    // TODO: this needs to handle paths.
     std::string out_fn = std::string(buf) + "." + argv[2];
     FILE* out_fp = fopen(out_fn.c_str(), "wb");
     printf("    \'%s\': [\n", out_fn.c_str());

@@ -23,15 +23,16 @@ mat4.translate(renderer.view_, [0, -0.5, -3]);
 
 function onDrag(dx, dy) {
   var model = renderer.model_;
-  mat4.translate(model, [0, -2*dy/canvas.height, 0.0], model);
-  mat4.rotate(model, 10*dx / canvas.width, [0, 1, 0], model);
+  mat4.translate(model, [0, -2*dy/canvas.clientHeight, 0.0], model);
+  mat4.rotate(model, 10*dx / canvas.clientWidth, [0, 1, 0], model);
   renderer.postRedisplay();
 };
 
 addDragHandler(canvas, onDrag);
 
 function ndcFromEvent(evt) {
-  return [2*evt.clientX/canvas.width-1, 1-2*evt.clientY/canvas.height, 0, 1];
+  return [2*evt.clientX/canvas.clientWidth-1,
+          1-2*evt.clientY/canvas.clientHeight, 0, 1];
 }
 
 var projInv = mat4.create();
@@ -48,6 +49,7 @@ addWheelHandler(window, function(dx, dy, evt) {
   var view = renderer.view_;
   eyeFromNdc(ndcFromEvent(evt));
   vec3.scale(eyeFromEvt, -WHEEL_SCALE*dy);
+  //console.log(eyeFromEvt[0], eyeFromEvt[1], eyeFromEvt[2]);
   mat4.translate(view, eyeFromEvt);
   mat4.translate(view, [WHEEL_SCALE*dx, 0, 0]);
   renderer.postRedisplay();

@@ -61,13 +61,14 @@ static inline const char* StripLeadingWhitespace(const char* str) {
 }
 
 // Like basename.
-static inline const char* StripLeadingDir(const char* str) {
+static inline const char* StripLeadingDir(const char* const str) {
   const char* last_slash = NULL;
-  while (const char ch = *str) {
+  const char* pos = str;
+  while (const char ch = *pos) {
     if (ch == '/' || ch == '\\') {
-      last_slash = str;
+      last_slash = pos;
     }
-    ++str;
+    ++pos;
   }
   return last_slash ? (last_slash + 1) : str;
 }

@@ -51,6 +51,7 @@ function addDragHandler(dom, drag) {
       prevY_ = evt.screenY;
     },
     mouseup: function() {
+      drag(0, 0);
       removeListeners(document, LISTENERS);
     }
   };
