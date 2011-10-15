@@ -1,7 +1,35 @@
 'use strict';
 
-// Utility wrapper around WebGL. Perserves WebGL semantics, so it
-// isn't too object-oriented.
+var DEFAULT_VERTEX_FORMAT = [
+  { name: "a_position",
+    size: 3,
+    stride: 8,
+    offset: 0
+  }, 
+  { name: "a_texcoord",
+    size: 2,
+    stride: 8,
+    offset: 3
+  },
+  { name: "a_normal",
+    size: 3,
+    stride: 8,
+    offset: 5
+  }
+];
+
+var BBOX_VERTEX_FORMAT = [
+  { name: "a_position",
+    size: 3,
+    stride: 6,
+    offset: 0
+  }, 
+  { name: "a_radius",
+    size: 3,
+    stride: 6,
+    offset: 3
+  }
+];
 
 function createContextFromCanvas(canvas) {
   var context = canvas.getContext('experimental-webgl');
@@ -49,6 +77,7 @@ function Program(gl, shaders) {
     throw this.info();
   }
   
+  // TODO: turn these into properties.
   var numActiveAttribs = gl.getProgramParameter(this.handle_,
                                                 gl.ACTIVE_ATTRIBUTES);
   this.attribs = [];
@@ -80,37 +109,37 @@ Program.prototype.use = function() {
   this.gl_.useProgram(this.handle_);
 };
 
-Program.prototype.enableVertexAttribArrays = function(attribArrays) {
-  var numAttribs = attribArrays.length;
+Program.prototype.enableVertexAttribArrays = function(vertexFormat) {
+  var numAttribs = vertexFormat.length;
   for (var i = 0; i < numAttribs; ++i) {
-    var params = attribArrays[i];
-    var loc = this.set_attrib[params.name];
+    var attrib = vertexFormat[i];
+    var loc = this.set_attrib[attrib.name];
     if (loc !== undefined) {
       this.gl_.enableVertexAttribArray(loc);
     }
   }
 };
 
-Program.prototype.disableVertexAttribArrays = function(attribArrays) {
-  var numAttribs = attribArrays.length;
+Program.prototype.disableVertexAttribArrays = function(vertexFormat) {
+  var numAttribs = vertexFormat.length;
   for (var i = 0; i < numAttribs; ++i) {
-    var params = attribArrays[i];
-    var loc = this.set_attrib[params.name];
+    var attrib = vertexFormat[i];
+    var loc = this.set_attrib[attrib.name];
     if (loc !== undefined) {
       this.gl_.disableVertexAttribArray(loc);
     }
   }
 };
 
-Program.prototype.vertexAttribPointers = function(attribArrays) {
-  var numAttribs = attribArrays.length;
+Program.prototype.vertexAttribPointers = function(vertexFormat) {
+  var numAttribs = vertexFormat.length;
   for (var i = 0; i < numAttribs; ++i) {
-    var params = attribArrays[i];
-    var loc = this.set_attrib[params.name];
+    var attrib = vertexFormat[i];
+    var loc = this.set_attrib[attrib.name];
     var typeBytes = 4;  // TODO: 4 assumes gl.FLOAT, use params.type
-    this.gl_.vertexAttribPointer(loc, params.size, this.gl_.FLOAT,
-                                 !!params.normalized, typeBytes*params.stride,
-                                 typeBytes*params.offset);
+    this.gl_.vertexAttribPointer(loc, attrib.size, this.gl_.FLOAT,
+                                 !!attrib.normalized, typeBytes*attrib.stride,
+                                 typeBytes*attrib.offset);
   }
 };
 
@@ -212,13 +241,15 @@ Mesh.prototype.bind = function(program) {
   program.vertexAttribPointers(this.attribArrays_);
 };
 
-Mesh.prototype.draw = function(opt_length, opt_offset) {
-  if (opt_length === 0) return
+Mesh.prototype.draw = function() {
+  var gl = this.gl_;
+  gl.drawElements(gl.TRIANGLES, this.numIndices_, gl.UNSIGNED_SHORT, 0);
+};
 
-  opt_length = opt_length || this.numIndices_;
+Mesh.prototype.drawRange = function(length, opt_offset) {
   opt_offset = opt_offset || 0;
   var gl = this.gl_;
-  gl.drawElements(gl.TRIANGLES, opt_length, gl.UNSIGNED_SHORT, 2*opt_offset);
+  gl.drawElements(gl.TRIANGLES, length, gl.UNSIGNED_SHORT, 2*opt_offset);
 };
 
 Mesh.prototype.drawList = function(displayList) {
@@ -226,7 +257,7 @@ Mesh.prototype.drawList = function(displayList) {
   for (var i = 0; i < numDraws; i += 2) {
     var drawStart = displayList[i];
     var drawLength = displayList[i+1] - drawStart;
-    this.draw(drawLength, drawStart);
+    this.drawRange(drawLength, drawStart);
   }
 };
 

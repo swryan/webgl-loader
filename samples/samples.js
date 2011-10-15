@@ -11,7 +11,7 @@ var simpleFsrc = id('SIMPLE_FRAGMENT_SHADER').text;
 renderer.program_ = new Program(gl, [vertexShader(gl, simpleVsrc),
                                      fragmentShader(gl, simpleFsrc)]);
 renderer.program_.use();
-renderer.program_.enableVertexAttribArrays(DEFAULT_ATTRIB_ARRAYS);
+renderer.program_.enableVertexAttribArrays(DEFAULT_VERTEX_FORMAT);
 
 gl.activeTexture(gl.TEXTURE0);
 gl.uniform1i(renderer.program_.set_uniform.u_diffuse_sampler, 0);
@@ -83,7 +83,7 @@ function onLoad(attribArray, indexArray, bboxen, meshEntry) {
   var texture = textureFromMaterial(gl, meshEntry.material, function() {
     renderer.postRedisplay();
   });
-  var mesh = new Mesh(gl, attribArray, indexArray, DEFAULT_ATTRIB_ARRAYS,
+  var mesh = new Mesh(gl, attribArray, indexArray, DEFAULT_VERTEX_FORMAT,
                       texture, meshEntry.names, meshEntry.lengths, bboxen);
   renderer.meshes_.push(mesh);
 }

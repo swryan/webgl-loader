@@ -21,37 +21,6 @@
 // }
 var MODELS = {};
 
-var DEFAULT_ATTRIB_ARRAYS = [
-  { name: "a_position",
-    size: 3,
-    stride: 8,
-    offset: 0
-  }, 
-  { name: "a_texcoord",
-    size: 2,
-    stride: 8,
-    offset: 3
-  },
-  { name: "a_normal",
-    size: 3,
-    stride: 8,
-    offset: 5
-  }
-];
-
-var BBOX_ATTRIB_ARRAYS = [
-  { name: "a_position",
-    size: 3,
-    stride: 6,
-    offset: 0
-  }, 
-  { name: "a_radius",
-    size: 3,
-    stride: 6,
-    offset: 3
-  }
-];
-
 var DEFAULT_DECODE_PARAMS = {
   decodeOffsets: [-4095, -4095, -4095, 0, 0, -511, -511, -511],
   decodeScales: [1/8191, 1/8191, 1/8191, 1/1023, 1/1023, 1/1023, 1/1023, 1/1023]
