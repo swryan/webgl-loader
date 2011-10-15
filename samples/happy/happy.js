@@ -1,23 +1,5 @@
 'use strict';
 
-var BUDDHA_ATTRIB_ARRAYS = [
-  { name: "a_position",
-    size: 3,
-    stride: 8,
-    offset: 0,
-    decodeOffset: -4095,
-    decodeScale: 1/8191
-  },
-  {
-    name: "a_normal",
-    size: 3,
-    stride: 8,
-    offset: 5,
-    decodeOffset: -511,
-    decodeScale: 1/1023
-  }
-];
-
 var BUDDHA_DECODE_PARAMS = {
   decodeOffsets: [-4095, -4095, -4095, 0, 0, -511, -511, -511],
   decodeScales: [1/8191, 1/8191, 1/8191, 0, 0, 1/1023, 1/1023, 1/1023]
@@ -44,7 +26,7 @@ load : function(gl)
                                  fragmentShader(gl, simpleFsrc)]);
   this.program = program;
   program.use();
-  program.enableVertexAttribArrays(BUDDHA_ATTRIB_ARRAYS);
+  program.enableVertexAttribArrays(NO_TEXCOORD_VERTEX_FORMAT);
 
   var meshes = [];
   downloadMeshes('', {
@@ -95,7 +77,8 @@ load : function(gl)
       },
     ],
   }, BUDDHA_DECODE_PARAMS, function(attribArray, indexArray) {
-    meshes.push(new Mesh(gl, attribArray, indexArray, BUDDHA_ATTRIB_ARRAYS));
+    meshes.push(new Mesh(gl, attribArray, indexArray,
+                         NO_TEXCOORD_VERTEX_FORMAT));
   });
 
   this.meshes = meshes;

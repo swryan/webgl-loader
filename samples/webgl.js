@@ -18,6 +18,19 @@ var DEFAULT_VERTEX_FORMAT = [
   }
 ];
 
+var NO_TEXCOORD_VERTEX_FORMAT = [
+  { name: "a_position",
+    size: 3,
+    stride: 8,
+    offset: 0
+  }, 
+  { name: "a_normal",
+    size: 3,
+    stride: 8,
+    offset: 5
+  }
+];
+
 var BBOX_VERTEX_FORMAT = [
   { name: "a_position",
     size: 3,
