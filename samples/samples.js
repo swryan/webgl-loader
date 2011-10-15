@@ -25,6 +25,10 @@ function onDrag(dx, dy) {
   var model = renderer.model_;
   mat4.translate(model, [0, -2*dy/canvas.clientHeight, 0.0], model);
   mat4.rotate(model, 10*dx / canvas.clientWidth, [0, 1, 0], model);
+
+  // renderer.scaleX = dx ? 0.5 : 1.0;
+  // renderer.scaleY = dy ? 0.5 : 1.0;
+
   renderer.postRedisplay();
 };
 
@@ -49,7 +53,6 @@ addWheelHandler(window, function(dx, dy, evt) {
   var view = renderer.view_;
   eyeFromNdc(ndcFromEvent(evt));
   vec3.scale(eyeFromEvt, -WHEEL_SCALE*dy);
-  //console.log(eyeFromEvt[0], eyeFromEvt[1], eyeFromEvt[2]);
   mat4.translate(view, eyeFromEvt);
   mat4.translate(view, [WHEEL_SCALE*dx, 0, 0]);
   renderer.postRedisplay();

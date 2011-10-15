@@ -18,22 +18,34 @@ function Renderer(canvas) {
   this.meshes_ = [];
 
   // Resize.
-  function onWindowResize_() {
-    // Move this to draw_!
-    var canvas = self.canvas_;
-    canvas.width = canvas.clientWidth;
-    canvas.height = canvas.clientHeight;
-    gl.viewport(0, 0, canvas.width, canvas.height);
-    self.postRedisplay();
-  }
-  onWindowResize_();
-  window.addEventListener('resize', onWindowResize_);
+  this.maxWidth = 20480;
+  this.maxHeight = 20480;
+  this.scaleX = 1.0;
+  this.scaleY = 1.0;
+  window.addEventListener('resize', this.postRedisplay.bind(this));
 
   // WebGL
-  gl.clearColor(0.4, 0.4, 0.4, 1.0);
+  gl.clearColor(0, 0, 0, 0);
   gl.enable(gl.CULL_FACE);
   gl.enable(gl.DEPTH_TEST);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+}
+
+Renderer.prototype.setViewport_ = function () {
+  var canvas = this.canvas_;
+
+  var newWidth = Math.round(this.scaleX * canvas.clientWidth);
+  var newHeight = Math.round(this.scaleY * canvas.clientHeight);
+
+  newWidth = clamp(newWidth, 1, this.maxWidth);
+  newHeight = clamp(newHeight, 1, this.maxHeight);
+
+  if (canvas.width !== newWidth || canvas.height !== newHeight) {
+    canvas.width = newWidth;
+    canvas.height = newHeight;
+
+    this.gl_.viewport(0, 0, newWidth, newHeight);
+  }
 }
 
 Renderer.prototype.drawAll_ = function() {
@@ -75,8 +87,8 @@ Renderer.prototype.postRedisplay = function() {
   if (!this.frameStart_) {
     this.frameStart_ = Date.now();
     window.requestAnimFrame(function() { 
+      self.setViewport_();
       self.draw_();
-      // console.log('last frame ms:', Date.now() - self.frameStart_);
       self.frameStart_ = 0;
     }, this.canvas_);
   }
