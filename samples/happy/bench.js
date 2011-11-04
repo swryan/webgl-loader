@@ -1,4 +1,7 @@
+'use strict'
+
 var out = window.document.getElementById('output');
+var progress = window.document.getElementById('progress');
 
 var decode_ms = 0;
 
@@ -10,15 +13,15 @@ function updateDecode(ms) {
 
 function updateTotal(ms) {
   start_drawing = true;
-  out.innerHTML = "Decode time: " + decode_ms +
-      " ms, Total time: " + ms + " ms";
+  out.innerHTML = 'Decode time: ' + decode_ms +
+      ' ms, Total time: ' + ms + ' ms';
 }
 
 var URLS = [ 'happy.utf8' ];
 
 var DEFAULT_ATTRIB_ARRAYS = [
   {
-    name: "a_position",
+    name: 'a_position',
     size: 3,
     stride: 8,
     offset: 0,
@@ -26,7 +29,7 @@ var DEFAULT_ATTRIB_ARRAYS = [
     decodeScale: 1/8191
   },
   {
-    name: "a_texcoord",
+    name: 'a_texcoord',
     size: 2,
     stride: 8,
     offset: 3,
@@ -34,7 +37,7 @@ var DEFAULT_ATTRIB_ARRAYS = [
     decodeScale: 1/1023
   },
   {
-    name: "a_normal",
+    name: 'a_normal',
     size: 3,
     stride: 8,
     offset: 5,
@@ -55,6 +58,8 @@ function decompressInner_(str, inputStart, inputEnd,
   }
 }
 
+// This isn't really the correct algorithm anymore, but the inner loop
+// is the same.
 function decompressSimpleMesh(str, attribArrays) {
   var numVerts = str.charCodeAt(0);
   if (numVerts >= 0xE000) numVerts -= 0x0800;
@@ -119,6 +124,10 @@ for (var i = 0; i < URLS.length; ++i) {
         updateTotal(Date.now() - start_time);
       }
     }
+  };
+  req.onprogress = function(e) {
+    progress.value = e.position;
+    progress.max = e.totalSize;
   };
   req.open('GET', URLS[i], true);
   req.send(null);

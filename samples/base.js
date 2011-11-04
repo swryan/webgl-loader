@@ -97,9 +97,12 @@ window.requestAnimFrame = window.requestAnimationFrame ||
   };
 
 // XMLHttpRequest stuff.
-function getHttpRequest(url, onload) {
+function getHttpRequest(url, onload, opt_onprogress) {
   var req = new XMLHttpRequest();
-  req.onload = function() { onload(req); };
+  req.onload = function(e) { onload(req, e); };
+  if (opt_onprogress) {
+    req.onprogress = function(e) { opt_onprogress(req, e); };
+  }
   req.open('GET', url, true);
   req.send(null);
 };
