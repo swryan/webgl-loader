@@ -135,8 +135,8 @@ function downloadMesh(path, meshEntry, decodeParams, callback) {
       var meshParams = meshEntry[idx];
       var indexRange = meshParams.indexRange;
       var meshEnd = indexRange[0] + 3*indexRange[1];
-      if (e.position < meshEnd) break;
-      
+      if (req.responseText.length < meshEnd) break;
+
       decompressMesh(req.responseText, meshParams, decodeParams, callback);
       ++idx;
     }
