@@ -1,4 +1,4 @@
-'use strict'
+'use strict';
 
 var out = window.document.getElementById('output');
 var progress = window.document.getElementById('progress');
@@ -16,8 +16,6 @@ function updateTotal(ms) {
   out.innerHTML = 'Decode time: ' + decode_ms +
       ' ms, Total time: ' + ms + ' ms';
 }
-
-var URLS = [ 'happy.utf8' ];
 
 var DEFAULT_ATTRIB_ARRAYS = [
   {
@@ -112,23 +110,20 @@ function decompressSimpleMesh(str, attribArrays) {
 
 var meshes = [];
 var start_time = Date.now();
-for (var i = 0; i < URLS.length; ++i) {
-  var req = new XMLHttpRequest();
-  req.onload = function() {
-    if (this.status === 200 || this.status === 0) {
-      var decodeStart = Date.now();
-      meshes[meshes.length] =
+var req = new XMLHttpRequest();
+req.onload = function(e) {
+  if (this.status === 200 || this.status === 0) {
+    var decodeStart = Date.now();
+    meshes[meshes.length] =
         decompressSimpleMesh(this.responseText, DEFAULT_ATTRIB_ARRAYS);
-      updateDecode(Date.now() - decodeStart);
-      if (meshes.length === URLS.length) {
-        updateTotal(Date.now() - start_time);
-      }
-    }
-  };
-  req.onprogress = function(e) {
-    progress.value = e.position;
-    progress.max = e.totalSize;
-  };
-  req.open('GET', URLS[i], true);
-  req.send(null);
-}
+    updateDecode(Date.now() - decodeStart);
+    updateTotal(Date.now() - start_time);
+    progress.value = progress.max;
+  }
+};
+req.onprogress = function(e) {
+  progress.value = e.loaded;
+  progress.max = e.total;
+};
+req.open('GET', 'happy.utf8', true);
+req.send(null);

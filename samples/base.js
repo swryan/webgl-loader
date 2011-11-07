@@ -90,19 +90,21 @@ function addWheelHandler(dom, wheel) {
 window.requestAnimFrame = window.requestAnimationFrame ||
   window.webkitRequestAnimationFrame ||
   window.mozRequestAnimationFrame ||
-  window.oRequestAnimationFrame || 
-  window.msRequestAnimationFrame || 
+  window.oRequestAnimationFrame ||
+  window.msRequestAnimationFrame ||
   function(callback, unused_dom) {
     window.setTimeout(callback, 16);  // 16ms ~ 60Hz
   };
 
 // XMLHttpRequest stuff.
 function getHttpRequest(url, onload, opt_onprogress) {
+  var LISTENERS = {
+    load: function(e) { onload(req, e); },
+    progress: function(e) { opt_onprogress(req, e); },
+  };
+
   var req = new XMLHttpRequest();
-  req.onload = function(e) { onload(req, e); };
-  if (opt_onprogress) {
-    req.onprogress = function(e) { opt_onprogress(req, e); };
-  }
+  addListeners(req, LISTENERS);
   req.open('GET', url, true);
   req.send(null);
 };

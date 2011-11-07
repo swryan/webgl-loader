@@ -1,7 +1,7 @@
 'use strict';
 
 // Model manifest description. Contains objects like:
-// name: { 
+// name: {
 //   materials: { 'material_name': { ... } ... },
 //   decodeParams: {
 //     decodeOffsets: [ ... ],
@@ -26,7 +26,7 @@ var DEFAULT_DECODE_PARAMS = {
   decodeScales: [1/8191, 1/8191, 1/8191, 1/1023, 1/1023, 1/1023, 1/1023, 1/1023],
   // TODO: normal decoding? (see walt.js)
   // needs to know: input, output (from vertex format!)
-  // 
+  //
   // Should split attrib/index.
   // 1) Decode position and non-normal attributes.
   // 2) Decode indices, computing normals
@@ -110,12 +110,12 @@ function decompressMesh(str, meshParams, decodeParams, callback) {
     }
     inputOffset = end;
   }
-  
+
   var indexStart = meshParams.indexRange[0];
   var numIndices = 3*meshParams.indexRange[1];
   var indicesOut = new Uint16Array(numIndices);
   decompressIndices_(str, inputOffset, numIndices, indicesOut, 0);
-  
+
   // Decode bboxen.
   var bboxen = undefined;
   var bboxOffset = meshParams.bboxes;
@@ -128,9 +128,7 @@ function decompressMesh(str, meshParams, decodeParams, callback) {
 
 function downloadMesh(path, meshEntry, decodeParams, callback) {
   var idx = 0;
-  getHttpRequest(path, function(xhr) {
-    // TODO: handle errors.
-  }, function(req, e) {
+  function onprogress(req, e) {
     while (idx < meshEntry.length) {
       var meshParams = meshEntry[idx];
       var indexRange = meshParams.indexRange;
@@ -140,7 +138,13 @@ function downloadMesh(path, meshEntry, decodeParams, callback) {
       decompressMesh(req.responseText, meshParams, decodeParams, callback);
       ++idx;
     }
-  });
+  };
+  getHttpRequest(path, function(req, e) {
+    if (req.status === 200 || req.status === 0) {
+      onprogress(req, e);
+    }
+    // TODO: handle errors.
+  }, onprogress);
 }
 
 function downloadMeshes(path, meshUrlMap, decodeParams, callback) {
