@@ -17,6 +17,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <string>
 #include <vector>
@@ -60,6 +61,13 @@ static inline const char* StripLeadingWhitespace(const char* str) {
   return str;
 }
 
+static inline char* StripLeadingWhitespace(char* str) {
+  while (isspace(*str)) {
+    ++str;
+  }
+  return str;
+}
+
 // Like basename.
 static inline const char* StripLeadingDir(const char* const str) {
   const char* last_slash = NULL;
@@ -73,7 +81,7 @@ static inline const char* StripLeadingDir(const char* const str) {
   return last_slash ? (last_slash + 1) : str;
 }
 
-static inline void TerminateAtNewlineOrComment(const char* str) {
+static inline void TerminateAtNewlineOrComment(char* str) {
   char* newline = strpbrk(str, "#\r\n");
   if (newline) {
     *newline = '\0';
@@ -107,7 +115,7 @@ static inline void ToLower(const char* in, std::string* out) {
 static inline void ToLowerInplace(std::string* in) {
   std::string& s = *in;
   for (size_t i = 0; i < s.size(); ++i) {
-    s[i] = tolower(s[i]);    
+    s[i] = tolower(s[i]);
   }
 }
 

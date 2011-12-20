@@ -121,7 +121,7 @@ class IndexFlattener {
   void reserve(size_t size) {
     table_.reserve(size);
   }
-  
+
   // Returns a pair of: < flattened index, newly inserted >.
   std::pair<int, bool> GetFlattenedIndex(int position_index,
                                          int texcoord_index,
@@ -176,10 +176,10 @@ class IndexFlattener {
       return std::make_pair(iter->second, false);
     }
   }
-  
+
   static const int kIndexUnknown = -1;
   static const int kIndexNotInTable = -2;
-  
+
   struct IndexType {
     IndexType()
         : position_or_flat(kIndexUnknown),
@@ -192,7 +192,7 @@ class IndexFlattener {
           texcoord(texcoord_index),
           normal(normal_index)
     { }
-    
+
     // I'm being tricky/lazy here. The table_ stores the flattened
     // index in the first field, since it is indexed by position. The
     // map_ stores position and uses this struct as a key to lookup the
@@ -224,7 +224,7 @@ class IndexFlattener {
     }
   };
   typedef std::map<IndexType, int> MapType;
-  
+
   int count_;
   std::vector<IndexType> table_;
   MapType map_;
@@ -273,6 +273,7 @@ struct Bounds {
   }
 };
 
+// TODO(wonchun): Make a c'tor to properly initialize.
 struct GroupStart {
   size_t offset;  // offset into draw_mesh_.indices.
   unsigned int group_line;
@@ -290,14 +291,14 @@ class DrawBatch {
   const std::vector<GroupStart>& group_starts() const {
     return group_starts_;
   }
-  
+
   void Init(AttribList* positions, AttribList* texcoords, AttribList* normals) {
     positions_ = positions;
     texcoords_ = texcoords;
     normals_ = normals;
     flattener_.reserve(1024);
   }
-  
+
   void AddTriangle(unsigned int group_line, int* indices) {
     if (group_line != current_group_line_) {
       current_group_line_ = group_line;
@@ -306,6 +307,7 @@ class DrawBatch {
       group_start.group_line = group_line;
       group_start.min_index = INT_MAX;
       group_start.max_index = INT_MIN;
+      group_start.bounds.Clear();
       group_starts_.push_back(group_start);
     }
     GroupStart& group = group_starts_.back();
@@ -393,7 +395,7 @@ struct Material {
 typedef std::vector<Material> MaterialList;
 
 class WavefrontMtlFile {
- public:  
+ public:
   explicit WavefrontMtlFile(FILE* fp) {
     ParseFile(fp);
   }
@@ -410,7 +412,7 @@ class WavefrontMtlFile {
     char buffer[kLineBufferSize];
     unsigned int line_num = 1;
     while (fgets(buffer, kLineBufferSize, fp) != NULL) {
-      const char* stripped = StripLeadingWhitespace(buffer);
+      char* stripped = StripLeadingWhitespace(buffer);
       TerminateAtNewlineOrComment(stripped);
       ParseLine(stripped, line_num++);
     }
@@ -486,7 +488,7 @@ class WavefrontObjFile {
   const MaterialBatches& material_batches() const {
     return material_batches_;
   }
-  
+
   const std::string& LineToGroup(unsigned int line) const {
     typedef LineToGroups::const_iterator Iterator;
     typedef std::pair<Iterator, Iterator> EqualRange;
@@ -521,7 +523,7 @@ class WavefrontObjFile {
     char buffer[kLineBufferSize] = { 0 };
     unsigned int line_num = 1;
     while (fgets(buffer, kLineBufferSize, fp) != NULL) {
-      const char* stripped = StripLeadingWhitespace(buffer);
+      char* stripped = StripLeadingWhitespace(buffer);
       TerminateAtNewlineOrComment(stripped);
       ParseLine(stripped, line_num++);
     }
@@ -619,7 +621,7 @@ class WavefrontObjFile {
   void ParseFace(const char* line, unsigned int line_num) {
     // Also handle face outlines as faces.
     if (*line == 'o') ++line;
-    
+
     // TODO: instead of storing these indices as-is, it might make
     // sense to flatten them right away. This can reduce memory
     // consumption and improve access locality, especially since .OBJ
@@ -713,7 +715,7 @@ class WavefrontObjFile {
 
   void ParseUsemtl(const char* line, unsigned int line_num) {
     std::string usemtl;
-    ToLower(StripLeadingWhitespace(line), &usemtl); 
+    ToLower(StripLeadingWhitespace(line), &usemtl);
     MaterialBatches::iterator iter = material_batches_.find(usemtl);
     if (iter == material_batches_.end()) {
       ErrorLine("material not found", line_num);
@@ -738,7 +740,7 @@ class WavefrontObjFile {
   // Currently, batch by texture (i.e. map_Kd).
   MaterialBatches material_batches_;
   DrawBatch* current_batch_;
-  
+
   typedef std::multimap<unsigned int, std::string> LineToGroups;
   LineToGroups line_to_groups_;
   std::map<std::string, int> group_counts_;
@@ -867,7 +869,7 @@ void CompressQuantizedAttribsToUtf8(const QuantizedAttribList& attribs,
       const uint16 za = ZigZag(static_cast<int16>(word - prev));
       prev = word;
       CHECK(Uint16ToUtf8(za, utf8));
-    }     
+    }
   }
 }
 
