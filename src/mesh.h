@@ -285,7 +285,7 @@ class DrawBatch {
  public:
   DrawBatch()
       : flattener_(0),
-        current_group_line_(0) {
+        current_group_line_(0xFFFFFFFF) {
   }
 
   const std::vector<GroupStart>& group_starts() const {
