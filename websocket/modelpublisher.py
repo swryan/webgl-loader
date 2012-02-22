@@ -1,48 +1,17 @@
-import sys, os
-import multiprocessing
+import os
 import json
 
 from tornado import httpserver, web, websocket, ioloop
-
-WEB_SERVER_PORT = 8888
-WEB_SOCKET_PORT = 8889
-
-class IndexHandler(web.RequestHandler):
-    ''' render the workspace
-    '''
-    def get(self):
-        self.render('test.html')
-
-class ServerHandler(web.RequestHandler):
-    ''' initialize the web socket server & return the socket
-    '''
-    def get(self):
-        ws_url  = '/socket'
-        ws_port = WEB_SOCKET_PORT
-        srvr = multiprocessing.Process(target=runServer, args=(ws_url,ws_port))
-        srvr.start()
-        ws_addr = 'ws://localhost:%d%s' % (ws_port, ws_url)
-        self.write(ws_addr)
-
-class SamplesFileHandler(web.StaticFileHandler): 
-    ''' serve staic files from the samples directory
-    '''
-    def initialize(self): 
-        parent_path = os.path.join(os.path.dirname(__file__), os.path.pardir)
-        self.root = os.path.abspath(os.path.join(parent_path, 'samples'))
-
-    def get(self, path): 
-        web.StaticFileHandler.get(self, path) 
                 
-def runServer(ws_url,ws_port):
+def publish_models(ws_url,ws_port):
     ''' run a web server on the specified port to serve a WebSocket
     '''
-    print '<<<'+str(os.getpid())+'>>> runServer'
+    print '<<<'+str(os.getpid())+'>>> publish_models'
 
     class WSHandler(websocket.WebSocketHandler):
         ''' this websocket will stream a series of messages at 10 sec intervals
         '''                
-        def write_next_message(self):
+        def send_next_model(self):
             try:
                 if self.counter > len(models)-1:
                     print 'all done, stopping timer...'
@@ -54,13 +23,13 @@ def runServer(ws_url,ws_port):
                 self.write_message(message)
                 self.counter += 1
             except Exception, err:
-                print 'Failed to send message:',err
+                print 'failed to send model:',err
                 print models[self.counter]
                 self.counter += 1
             
         def initialize(self,addr):
             self.counter = 0
-            self.timer = ioloop.PeriodicCallback(self.write_next_message, 10000)
+            self.timer = ioloop.PeriodicCallback(self.send_next_model, 10000)
             self.timer.start()
         
     application = web.Application([
@@ -73,34 +42,6 @@ def runServer(ws_url,ws_port):
     ioloop.IOLoop.instance().start()
 
 
-def main():
-    ''' run the main web server on port 8000
-    '''
-    print '<<<'+str(os.getpid())+'>>> main'
-    app_path = os.path.dirname(os.path.abspath(__file__))
-    par_path = os.path.join(app_path, os.path.pardir)
-    static_path = os.path.join(par_path, 'samples')
-    settings = { 
-        'template_path':     app_path,
-        'debug':             True,
-    }
-    application = web.Application([
-        web.url(r'/',            IndexHandler),
-        web.url(r'/server/?',    ServerHandler),
-        web.url(r'/(.*)',        SamplesFileHandler),
-    ], **settings)
-    
-    print 'running web server on port:',WEB_SERVER_PORT
-    http_server = httpserver.HTTPServer(application)
-    http_server.listen(WEB_SERVER_PORT)
-    ioloop.IOLoop.instance().start()
-        
-if __name__ == '__main__':
-    # dont run main() if this is a forked windows process
-    if sys.modules['__main__'].__file__ == __file__:
-        main()
-
-        
 models = [ """
 {
     "ben.utf8": [

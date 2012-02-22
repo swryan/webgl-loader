@@ -1,7 +1,7 @@
 <!doctype html>
 <html> <head>
 <link rel="stylesheet" type="text/css" href="samples.css">
-<title>WebGL Loader Example with WebSocket</title>
+<title>WebGL Loader Example with WebSocket Publisher</title>
 </head>
 <body>
 
@@ -62,6 +62,8 @@ void main(void) {
 
 <script type="text/javascript">
 
+    jQuery('body').append('<p>Count to 10...</p>')
+    
     jQuery.ajax({
         type: 'GET',
         url:  'server',
