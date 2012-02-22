@@ -4,7 +4,7 @@ import json
 from tornado import httpserver, web, websocket, ioloop
                 
 def publish_models(ws_url,ws_port):
-    ''' run a web server on the specified port to serve a WebSocket
+    ''' run a web server on the specified url and port to serve a WebSocket
     '''
     print '<<<'+str(os.getpid())+'>>> publish_models'
 

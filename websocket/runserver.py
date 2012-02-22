@@ -9,13 +9,13 @@ WEB_SERVER_PORT = 8888
 WEB_SOCKET_PORT = 8889
 
 class IndexHandler(web.RequestHandler):
-    ''' render the workspace
+    ''' render the page
     '''
     def get(self):
         self.render('index.html')
 
 class ServerHandler(web.RequestHandler):
-    ''' initialize the web socket server & return the socket
+    ''' initialize the web socket server & return the socket address
     '''
     def get(self):
         ws_url  = '/socket'
@@ -26,7 +26,7 @@ class ServerHandler(web.RequestHandler):
         self.write(ws_addr)
 
 class SamplesFileHandler(web.StaticFileHandler): 
-    ''' serve staic files from the samples directory
+    ''' serve static files from the samples directory
     '''
     def initialize(self): 
         parent_path = os.path.join(os.path.dirname(__file__), os.path.pardir)
@@ -37,7 +37,7 @@ class SamplesFileHandler(web.StaticFileHandler):
                 
 
 def main():
-    ''' run the main web server on port 8000
+    ''' run the web server
     '''
     print '<<<'+str(os.getpid())+'>>> main'
     settings = { 
