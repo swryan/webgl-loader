@@ -72,11 +72,11 @@ void main(void) {
             console.log("opening output socket at",addr,sck);
             sck.onopen = function (e) {
                 console.log('output socket opened',e);
-                jQuery('body').append('<p>Accepting model updates...</p>')
+                jQuery('body').append('<p>Connection opened, accepting model updates...</p>')
             };
             sck.onclose = function (e) {
                 console.log('output socket closed',e);
-                jQuery('body').append('<p>Connection closed... no more updates</p>')
+                jQuery('body').append('<p>Connection closed, no more updates.</p>')
             };
             sck.onmessage = function(e) {
                 console.log('output socket message:',e);
