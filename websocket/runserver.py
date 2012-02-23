@@ -1,5 +1,5 @@
 import sys, os
-import multiprocessing
+import subprocess
 
 from tornado import httpserver, web, websocket, ioloop
 
@@ -18,10 +18,9 @@ class ServerHandler(web.RequestHandler):
     ''' initialize the web socket server & return the socket address
     '''
     def get(self):
-        ws_url  = '/socket'
         ws_port = WEB_SOCKET_PORT
-        srvr = multiprocessing.Process(target=publish_models, args=(ws_url,ws_port))
-        srvr.start()
+        ws_url  = '/socket'
+        subprocess.Popen(['python','modelpublisher.py',str(ws_port),ws_url])
         ws_addr = 'ws://localhost:%d%s' % (ws_port, ws_url)
         self.write(ws_addr)
 

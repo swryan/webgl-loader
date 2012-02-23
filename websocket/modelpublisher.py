@@ -1,9 +1,9 @@
-import os
+import sys, os
 import json
 
 from tornado import httpserver, web, websocket, ioloop
                 
-def publish_models(ws_url,ws_port):
+def publish_models(ws_port,ws_url):
     ''' run a web server on the specified url and port to serve a WebSocket
     '''
     print '<<<'+str(os.getpid())+'>>> publish_models'
@@ -16,21 +16,27 @@ def publish_models(ws_url,ws_port):
                 if self.counter > len(models)-1:
                     print 'all done, stopping timer...'
                     self.timer.stop()
+                    self.close()
                     return
                 message = json.loads(models[self.counter])
-                print 'sending model:',message.keys()
+                print 'sending model info:',message.keys()
                 #print json.dumps(message,indent=2)                    
                 self.write_message(message)
                 self.counter += 1
             except Exception, err:
-                print 'failed to send model:',err
+                print 'failed to send model info:',err
                 print models[self.counter]
                 self.counter += 1
             
         def initialize(self,addr):
             self.counter = 0
+            
+        def open(self):
+            # start sending models when the port is opened
+            self.send_next_model()
             self.timer = ioloop.PeriodicCallback(self.send_next_model, 10000)
             self.timer.start()
+        
         
     application = web.Application([
         (ws_url, WSHandler, dict(addr=ws_url))
@@ -121,3 +127,17 @@ models = [ """
 }
 """
 ]        
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    
+    try:
+        ws_port = argv[1]
+        ws_url = argv[2]
+        publish_models(ws_port,ws_url)
+    except Exception,err:
+        "Couldn't run model publisher, check your args:",err
+
+if __name__ == '__main__':
+    main()
