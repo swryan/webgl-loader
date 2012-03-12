@@ -1,6 +1,8 @@
 import sys, os
 import subprocess
 
+import struct
+
 from tornado import httpserver, web, websocket, ioloop
 
 from modelpublisher import publish_models
@@ -13,6 +15,15 @@ class IndexHandler(web.RequestHandler):
     '''
     def get(self):
         self.render('index.html')
+
+class FloatHandler(web.RequestHandler):
+    ''' render the page
+    '''
+    def get(self):
+        floats = [ 1.1, 3.3, 5.5, 7.7, 11.11, 13.13, 17.17 ]
+        s = struct.pack('f'*len(floats),*floats)
+        self.set_header('content_type','application/octet-stream')
+        self.write(s)
 
 class ServerHandler(web.RequestHandler):
     ''' initialize the web socket server & return the socket address
@@ -45,6 +56,7 @@ def main():
     }
     application = web.Application([
         web.url(r'/',            IndexHandler),
+        web.url(r'/floats/?',    FloatHandler),
         web.url(r'/server/?',    ServerHandler),
         web.url(r'/(.*)',        SamplesFileHandler),
     ], **settings)
