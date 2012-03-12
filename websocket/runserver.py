@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, time
 import subprocess
 
 from tornado import httpserver, web, websocket, ioloop
@@ -22,6 +22,7 @@ class ServerHandler(web.RequestHandler):
         ws_url  = '/socket'
         subprocess.Popen(['python','modelpublisher.py',str(ws_port),ws_url])
         ws_addr = 'ws://localhost:%d%s' % (ws_port, ws_url)
+	time.sleep(1)
         self.write(ws_addr)
 
 class SamplesFileHandler(web.StaticFileHandler): 
