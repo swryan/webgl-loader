@@ -62,6 +62,26 @@ void main(void) {
 
 <script type="text/javascript">
 
+    function fetchData(url) {
+        // fetch binary data & wrap it with the appropriate data view
+        // @see http://www.html5rocks.com/en/tutorials/file/xhr2/#toc-reponseTypeArrayBuffer
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.responseType = 'arraybuffer';
+        xhr.onload = function(e) {        
+            // pretend it's an integer array
+            jQuery('body').append('<p>Downloaded blob from '+url+'</p>')
+            var intArray = new Uint8Array(this.response);
+            jQuery('body').append('<p>int[0]='+intArray[0]+', int['+intArray.length+']='+intArray[intArray.length-1]+'</p>')
+            
+            // pretend it's a float array
+            if (this.response.length%4 == 0) {
+                var floatArray = new Float32Array(this.response);
+                jQuery('body').append('<p>First float:'+floatArray[0]+'</p>')
+            }
+        };
+        xhr.send();        
+    }
     
     jQuery.ajax({
         type: 'GET',
@@ -84,6 +104,8 @@ void main(void) {
                 console.log('json',json)
                 for (var key in json) {
                     jQuery('body').append('<p>Adding '+key+'</p>')
+                    // demonstrate fetching binary data (e.g. int/float array, etc.)
+                    fetchData(key);
                 }
                 downloadMeshes('', json, DEFAULT_DECODE_PARAMS, onLoad);
             };            

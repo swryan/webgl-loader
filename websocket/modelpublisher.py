@@ -17,6 +17,7 @@ def publish_models(ws_port,ws_url):
                     print 'all done, stopping timer...'
                     self.timer.stop()
                     self.close()
+                    ioloop.IOLoop.instance().stop()
                     return
                 message = json.loads(models[self.counter])
                 print 'sending model info:',message.keys()
